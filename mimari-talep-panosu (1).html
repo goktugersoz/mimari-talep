@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Çizim Talep Panosu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F5F7FA;
+    --grid-line:#CBD8E4;
+    --ink:#16283F;
+    --ink-soft:#3E5771;
+    --accent:#D9662C;
+    --accent-dark:#B8501F;
+    --tape:#E8B33D;
+    --line:#22303F;
+    --success:#3E7A57;
+    --card-bg:#FFFFFF;
+    --danger:#B23A32;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Inter',sans-serif;
+    color:var(--ink);
+    background:
+      linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0/28px 28px,
+      var(--paper);
+    min-height:100vh;
+    padding:28px 20px 60px;
+  }
+  .wrap{max-width:980px;margin:0 auto;}
+
+  /* ---- HEADER ---- */
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    border-bottom:3px solid var(--line);
+    padding-bottom:14px;
+    margin-bottom:22px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .brand-eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:2px;
+    color:var(--accent-dark);
+    text-transform:uppercase;
+    margin:0 0 4px;
+  }
+  h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:30px;
+    font-weight:700;
+    margin:0;
+    letter-spacing:-0.5px;
+  }
+  .rev-tag{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    border:1.5px solid var(--line);
+    padding:5px 10px;
+    background:#fff;
+  }
+
+  .storage-warning{
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    color:#5c3a12;
+    background:#FBEBD1;
+    border:1.5px solid var(--tape);
+    padding:10px 14px;
+    margin-bottom:18px;
+  }
+  .storage-warning.hidden{display:none;}
+
+  /* ---- TABS ---- */
+  .tabs{display:flex;gap:6px;margin-bottom:24px;}
+  .tab{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:14px;
+    padding:10px 18px;
+    background:#fff;
+    border:2px solid var(--line);
+    border-bottom:none;
+    cursor:pointer;
+    color:var(--ink-soft);
+    position:relative;
+    top:2px;
+  }
+  .tab.active{
+    color:var(--ink);
+    background:var(--paper);
+    border-bottom:2px solid var(--paper);
+  }
+  .panel{
+    border:2px solid var(--line);
+    background:#fff;
+    padding:26px;
+    min-height:420px;
+  }
+  .hidden{display:none;}
+
+  /* ---- SEARCH BAR ---- */
+  .toolbar{
+    display:flex;
+    gap:10px;
+    margin-bottom:20px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .toolbar input{
+    flex:1;
+    min-width:200px;
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    padding:10px 12px;
+    border:1.5px solid var(--grid-line);
+    background:var(--paper);
+  }
+  .toolbar input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .count-pill{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    white-space:nowrap;
+  }
+
+  /* ---- PROJECT GRID ---- */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+    gap:16px;
+  }
+  .card{
+    border:1.5px solid var(--line);
+    background:var(--card-bg);
+    position:relative;
+    animation:rise .35s ease both;
+    transition:transform .15s ease, box-shadow .15s ease;
+    cursor:pointer;
+  }
+  .card:hover{transform:translateY(-3px);box-shadow:4px 6px 0 var(--grid-line);}
+  .card:hover .card-company{text-decoration:underline;text-decoration-color:var(--grid-line);}
+
+  .board-section{margin-bottom:30px;}
+  .board-section:last-child{margin-bottom:0;}
+  .board-section-head{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    border-bottom:2px solid var(--line);
+    padding-bottom:8px;
+    margin-bottom:14px;
+  }
+  .board-section-title{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:16px;
+    letter-spacing:0.2px;
+  }
+  .board-section-count{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+  .empty-state.small{
+    padding:24px 16px;
+    font-size:13px;
+  }
+
+  .btn-cancel-edit{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:14px;
+    background:#fff;
+    color:var(--ink);
+    border:1.5px solid var(--line);
+    padding:11px 20px;
+    cursor:pointer;
+  }
+  .btn-cancel-edit:hover{background:var(--paper);}
+  .btn-cancel-edit.hidden{display:none;}
+  @keyframes rise{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  .card-head{
+    background:var(--ink);
+    color:#fff;
+    padding:8px 12px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .card-crm{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    font-size:14px;
+    letter-spacing:0.5px;
+  }
+  .card-del{
+    background:none;border:none;color:#e9c9bd;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px;
+  }
+  .card-del:hover{color:#fff;}
+  .card-body{padding:12px 12px 14px;}
+  .card-company{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:15px;
+    margin:0 0 8px;
+  }
+  .card-row{
+    display:flex;
+    justify-content:space-between;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    border-top:1px dashed var(--grid-line);
+    padding:5px 0;
+  }
+  .card-row b{
+    font-family:'JetBrains Mono',monospace;
+    color:var(--ink);
+    font-weight:700;
+  }
+  .card-type{
+    display:inline-block;
+    margin-top:8px;
+    font-size:11.5px;
+    background:var(--tape);
+    color:#3a2a05;
+    padding:3px 8px;
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+  }
+  .empty-state{
+    text-align:center;
+    padding:60px 20px;
+    color:var(--ink-soft);
+    border:2px dashed var(--grid-line);
+  }
+  .empty-state .big{font-family:'Space Grotesk',sans-serif;font-size:19px;color:var(--ink);margin-bottom:6px;font-weight:600;}
+
+  /* ---- STATUS BADGE ---- */
+  .status-badge{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    font-weight:700;
+    letter-spacing:0.5px;
+    padding:3px 7px;
+    cursor:pointer;
+    border:none;
+    text-transform:uppercase;
+  }
+  .status-badge.bekliyor{background:var(--accent);color:#fff;}
+  .status-badge.yapildi{background:var(--success);color:#fff;}
+  .status-badge:hover{filter:brightness(1.08);}
+
+  /* ---- PERSONNEL PANEL ---- */
+  .panel-lead{
+    font-size:13.5px;
+    color:var(--ink-soft);
+    margin:0 0 18px;
+    max-width:560px;
+    line-height:1.5;
+  }
+  .personnel-add-row{
+    display:flex;
+    gap:10px;
+    margin-bottom:22px;
+    max-width:480px;
+  }
+  .personnel-add-row input{
+    flex:1;
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    padding:10px 12px;
+    border:1.5px solid var(--grid-line);
+    background:var(--paper);
+  }
+  .personnel-add-row input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .personnel-add-row button{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:13.5px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    padding:0 18px;
+    cursor:pointer;
+  }
+  .personnel-add-row button:hover{background:var(--accent-dark);}
+  .personnel-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:11px 4px;
+    border-bottom:1px dashed var(--grid-line);
+    max-width:560px;
+  }
+  .personnel-name{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:14.5px;
+    flex:1;
+  }
+  .personnel-busy-tag{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    font-weight:700;
+    background:var(--tape);
+    color:#3a2a05;
+    padding:3px 7px;
+    white-space:nowrap;
+  }
+  .personnel-del{
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    cursor:pointer;
+    font-size:15px;
+    line-height:1;
+    padding:2px 6px;
+  }
+  .personnel-del:hover{color:var(--danger);}
+
+  .employee-warning{
+    margin-top:8px;
+    font-family:'Inter',sans-serif;
+    font-size:12px;
+    color:#8a4b0f;
+    background:#FBEBD1;
+    border:1.5px solid var(--tape);
+    padding:7px 10px;
+    line-height:1.4;
+  }
+  .employee-warning.hidden{display:none;}
+
+  /* ---- TITLE BLOCK FORM ---- */
+  .titleblock{
+    border:3px solid var(--line);
+    max-width:640px;
+    margin:0 auto;
+  }
+  .tb-top{
+    background:var(--ink);
+    color:#fff;
+    padding:12px 16px;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:16px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .tb-top span{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:400;color:#cdd8e3;}
+  .tb-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+  .cell{
+    border-right:1.5px solid var(--line);
+    border-bottom:1.5px solid var(--line);
+    padding:12px 14px;
+  }
+  .cell.full{grid-column:1/3;}
+  .cell:nth-child(2n){border-right:none;}
+  .cell label{
+    display:block;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+  }
+  .cell input, .cell textarea, .cell select{
+    width:100%;
+    border:none;
+    background:transparent;
+    font-family:'Space Grotesk',sans-serif;
+    font-size:16px;
+    color:var(--ink);
+    padding:2px 0;
+    border-bottom:1.5px solid transparent;
+  }
+  .cell input:focus, .cell textarea:focus, .cell select:focus{outline:none;border-bottom:1.5px solid var(--accent);}
+  .cell.crm input{font-family:'JetBrains Mono',monospace;font-weight:700;letter-spacing:0.5px;}
+  textarea{resize:vertical;min-height:44px;font-family:'Inter',sans-serif !important;font-size:13px !important;}
+
+  .cell select{appearance:none;-webkit-appearance:none;cursor:pointer;}
+  .select-wrap{position:relative;}
+  .select-wrap:after{
+    content:'▾';
+    position:absolute;
+    right:2px;top:0;
+    color:var(--ink-soft);
+    font-size:14px;
+    pointer-events:none;
+  }
+  .add-firma-row{
+    display:flex;
+    gap:8px;
+    margin-top:10px;
+  }
+  .add-firma-row.hidden{display:none;}
+  .add-firma-row input{
+    flex:1;
+    font-family:'Inter',sans-serif;
+    font-size:13.5px;
+    padding:7px 9px;
+    border:1.5px solid var(--grid-line);
+    background:var(--paper);
+    border-bottom:1.5px solid var(--grid-line) !important;
+  }
+  .add-firma-row input:focus{border-bottom:1.5px solid var(--accent) !important;}
+  .add-firma-row button{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:12.5px;
+    background:var(--ink);
+    color:#fff;
+    border:none;
+    padding:0 14px;
+    cursor:pointer;
+  }
+  .add-firma-row button:hover{background:var(--ink-soft);}
+
+  .tb-actions{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:14px 16px;
+    gap:10px;
+  }
+  .hint{font-size:11.5px;color:var(--ink-soft);font-family:'JetBrains Mono',monospace;}
+  .btn-submit{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:14px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    padding:11px 22px;
+    cursor:pointer;
+    transition:background .15s ease;
+  }
+  .btn-submit:hover{background:var(--accent-dark);}
+  .btn-submit:disabled{background:#c8b7a9;cursor:not-allowed;}
+
+  .toast{
+    position:fixed;
+    bottom:22px;left:50%;
+    transform:translateX(-50%);
+    background:var(--ink);
+    color:#fff;
+    padding:11px 20px;
+    font-family:'Space Grotesk',sans-serif;
+    font-size:13.5px;
+    font-weight:600;
+    box-shadow:0 4px 14px rgba(0,0,0,.25);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .25s ease, transform .25s ease;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+  .toast.err{background:var(--danger);}
+
+  .field-err{color:var(--danger);font-size:11.5px;font-family:'JetBrains Mono',monospace;margin-top:4px;display:none;}
+  .cell.invalid input, .cell.invalid select{border-bottom:1.5px solid var(--danger);}
+  .cell.invalid .field-err{display:block;}
+
+  @media (max-width:520px){
+    .tb-grid{grid-template-columns:1fr;}
+    .cell{border-right:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <p class="brand-eyebrow">Atölye içi paylaşım · Sadece ekip</p>
+      <h1>Çizim Talep Panosu</h1>
+    </div>
+    <div class="rev-tag" id="revTag">— · —</div>
+  </header>
+
+  <div class="storage-warning hidden" id="storageWarning">
+    ⚠ Bu görünümde paylaşımlı depolama bulunamadı — eklediğiniz kayıtlar yalnızca bu oturumda görünür, sayfa yenilenince veya başka biri açtığında kaybolur. Kalıcı ve paylaşımlı çalışması için bu sayfayı Claude sohbeti içinden (indirilen dosya olarak değil) kullanın.
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="board">PROJE PANOSU</div>
+    <div class="tab" data-tab="form">YENİ TALEP GİR</div>
+    <div class="tab" data-tab="personnel">PERSONEL</div>
+  </div>
+
+  <!-- BOARD -->
+  <div class="panel" id="panel-board">
+    <div class="toolbar">
+      <input id="searchInput" type="text" placeholder="Firma, CRM kodu veya çizim tipine göre ara…">
+      <span class="count-pill" id="countPill">0 proje</span>
+    </div>
+    <div id="gridArea"></div>
+  </div>
+
+  <!-- FORM -->
+  <div class="panel hidden" id="panel-form">
+    <div class="titleblock">
+      <div class="tb-top"><span id="tbTopTitle">ÇİZİM TALEP KİMLİK BLOĞU</span> <span id="dateNow"></span></div>
+      <div class="tb-grid">
+        <div class="cell full" id="cell-company">
+          <label>Şube / Firma</label>
+          <div class="select-wrap">
+            <select id="selCompany">
+              <optgroup label="AKSA ÇELİK AŞ Şubeleri" id="optgroupBranches"></optgroup>
+              <optgroup label="Diğer Hizmet Verilen Firmalar" id="optgroupOther"></optgroup>
+              <option value="__add__">+ Yeni Firma / Şube Ekle…</option>
+            </select>
+          </div>
+          <div class="add-firma-row hidden" id="addFirmaRow">
+            <input id="inpNewFirma" type="text" placeholder="Yeni firma / şube adı girin">
+            <button type="button" id="btnAddFirma">Ekle</button>
+          </div>
+          <div class="field-err">Şube veya firma seçimi zorunludur.</div>
+        </div>
+
+        <div class="cell crm" id="cell-crm">
+          <label>CRM Kodu</label>
+          <input id="inpCrm" type="text" placeholder="26-00000">
+          <div class="field-err">Format: YY-00000</div>
+        </div>
+
+        <div class="cell" id="cell-area">
+          <label>Bina Kodu</label>
+          <input id="inpBuildingCode" type="text" placeholder="örn. AK-500">
+          <div class="field-err">Bina kodu zorunludur.</div>
+        </div>
+
+        <div class="cell full" id="cell-type">
+          <label>Çizim / Proje Tipi</label>
+          <div class="select-wrap">
+            <select id="selType">
+              <optgroup label="Standart Çizim Tipleri" id="optgroupTypesFixed"></optgroup>
+              <optgroup label="Diğer Çizim Tipleri" id="optgroupTypesOther"></optgroup>
+              <option value="__add__">+ Yeni Çizim Tipi Ekle…</option>
+            </select>
+          </div>
+          <div class="add-firma-row hidden" id="addTypeRow">
+            <input id="inpNewType" type="text" placeholder="Yeni çizim tipi girin">
+            <button type="button" id="btnAddType">Ekle</button>
+          </div>
+          <div class="field-err">Çizim tipi seçimi zorunludur.</div>
+        </div>
+
+        <div class="cell" id="cell-employee">
+          <label>Çizimi Alan Personel (opsiyonel)</label>
+          <div class="select-wrap">
+            <select id="selEmployee">
+              <option value="">— Seçilmedi —</option>
+            </select>
+          </div>
+          <div class="employee-warning hidden" id="employeeWarning"></div>
+        </div>
+
+        <div class="cell">
+          <label>Talep Tarihi</label>
+          <input id="inpDate" type="date">
+        </div>
+
+        <div class="cell full" id="cell-file">
+          <label>Proje Çizim Dosyası (DWG, DXF, PDF vb. - Maks 2.5MB)</label>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <input id="inpFile" type="file" accept=".dwg,.dxf,.pdf,.zip,.rar,.png,.jpg,.jpeg" style="font-size:13px;">
+            <button type="button" id="btnRemoveFile" class="btn-cancel-edit hidden" style="padding:5px 12px; font-size:12px; height:auto; font-family:'Space Grotesk',sans-serif;">Dosyayı Kaldır</button>
+          </div>
+          <div id="fileStatus" class="hint" style="margin-top:5px; font-family:'JetBrains Mono',monospace;"></div>
+        </div>
+
+        <div class="cell full">
+          <label>Not (opsiyonel)</label>
+          <textarea id="inpNotes" rows="2" placeholder="Ek açıklama, revizyon notu vb."></textarea>
+        </div>
+      </div>
+      <div class="tb-actions">
+        <span class="hint" id="nextCodeHint">sıradaki kod: —</span>
+        <div style="display:flex;gap:10px;">
+          <button class="btn-cancel-edit hidden" id="btnCancelEdit" type="button">İptal</button>
+          <button class="btn-submit" id="btnSubmit">Listeye Ekle</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PERSONNEL -->
+  <div class="panel hidden" id="panel-personnel">
+    <p class="panel-lead">Ekipteki personeli buradan ekleyip çıkarabilirsiniz. Eklenen isimler, talep formundaki "Çizimi Alan Personel" listesinde seçilebilir hale gelir.</p>
+    <div class="personnel-add-row">
+      <input id="inpNewPersonnel" type="text" placeholder="Personel adı soyadı girin">
+      <button type="button" id="btnAddPersonnel">Personel Ekle</button>
+    </div>
+    <div id="personnelList"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'mimari-projeler-listesi';
+  const STORAGE_KEY_FIRMS = 'sube-firma-listesi';
+  const STORAGE_KEY_TYPES = 'cizim-tipi-listesi';
+  const STORAGE_KEY_PERSONNEL = 'personel-listesi';
+  const FIXED_BRANCHES = ['SİVAS','ANKARA','YOZGAT','KAYSERİ','ERZİNCAN','ESKİŞEHİR','BOLU','SAKARYA','BİLECİK'];
+  const FIXED_TYPES = ['Hafif Çelik Konut Planı','Çift Katlı Hafif Çelik Konut Planı','Prefabrik Konut Planı','Çift Katlı Prefabrik Konut Planı'];
+  let projects = [];
+  let otherFirms = [];
+  let otherTypes = [];
+  let personnelList = [];
+  let loaded = false;
+  let editingProjectId = null;
+  let attachedFile = null;
+
+  function formatBytes(bytes) {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const gridArea = $('gridArea');
+  const countPill = $('countPill');
+  const searchInput = $('searchInput');
+  const toast = $('toast');
+
+  function showToast(msg, isErr){
+    toast.textContent = msg;
+    toast.className = 'toast show' + (isErr ? ' err' : '');
+    setTimeout(()=> toast.className = 'toast', 2200);
+  }
+
+  function todayISO(){
+    const d = new Date();
+    return d.toISOString().slice(0,10);
+  }
+  
+  function storageAvailable(){
+    try {
+      return typeof window !== 'undefined' && (
+        (!!window.storage && typeof window.storage.get === 'function' && typeof window.storage.set === 'function')
+        || (!!window.localStorage && typeof window.localStorage.getItem === 'function')
+      );
+    } catch(e) {
+      return false;
+    }
+  }
+
+  async function getStorageItem(key) {
+    try {
+      if (window.storage && typeof window.storage.get === 'function') {
+        const res = await window.storage.get(key, true);
+        return res && res.value ? res.value : null;
+      }
+      if (window.localStorage) {
+        return window.localStorage.getItem(key);
+      }
+    } catch(e) {
+      console.warn("Storage read error:", e);
+    }
+    return null;
+  }
+
+  async function setStorageItem(key, value) {
+    try {
+      if (window.storage && typeof window.storage.set === 'function') {
+        return await window.storage.set(key, value, true);
+      }
+      if (window.localStorage) {
+        window.localStorage.setItem(key, value);
+        return true;
+      }
+    } catch(e) {
+      console.warn("Storage write error:", e);
+    }
+    return false;
+  }
+
+  function fmtDate(iso){
+    if(!iso) return '—';
+    const [y,m,d] = iso.split('-');
+    return `${d}.${m}.${y}`;
+  }
+
+  // ---- storage ----
+  async function loadProjects(){
+    if(!storageAvailable()){
+      projects = [];
+      loaded = true;
+      renderGrid();
+      updateNextCodeHint();
+      renderPersonnelPanel();
+      checkEmployeeWarning();
+      return;
+    }
+    try{
+      const val = await getStorageItem(STORAGE_KEY);
+      const parsed = val ? JSON.parse(val) : [];
+      projects = Array.isArray(parsed) ? parsed : [];
+    }catch(e){
+      projects = [];
+    }
+    loaded = true;
+    renderGrid();
+    updateNextCodeHint();
+    renderPersonnelPanel();
+    checkEmployeeWarning();
+  }
+
+  async function saveProjects(){
+    if(!storageAvailable()) return true;
+    try{
+      const res = await setStorageItem(STORAGE_KEY, JSON.stringify(projects));
+      if(!res){ showToast('Kaydetme başarısız oldu, tekrar deneyin.', true); return false; }
+      return true;
+    }catch(e){
+      showToast('Depolama hatası: kaydedilemedi.', true);
+      return false;
+    }
+  }
+
+  // ---- şube / firma listesi ----
+  async function loadFirms(){
+    if(!storageAvailable()){
+      otherFirms = [];
+      renderCompanyOptions();
+      return;
+    }
+    try{
+      const val = await getStorageItem(STORAGE_KEY_FIRMS);
+      const parsed = val ? JSON.parse(val) : [];
+      otherFirms = Array.isArray(parsed) ? parsed : [];
+    }catch(e){
+      otherFirms = [];
+    }
+    renderCompanyOptions();
+  }
+
+  async function saveFirms(){
+    if(!storageAvailable()) return true;
+    try{
+      const res = await setStorageItem(STORAGE_KEY_FIRMS, JSON.stringify(otherFirms));
+      if(!res){ showToast('Firma listesi kaydedilemedi.', true); return false; }
+      return true;
+    }catch(e){
+      showToast('Depolama hatası: firma eklenemedi.', true);
+      return false;
+    }
+  }
+
+  function renderCompanyOptions(selectedValue){
+    const branchGroup = $('optgroupBranches');
+    const otherGroup = $('optgroupOther');
+    branchGroup.innerHTML = FIXED_BRANCHES.map(c=>{
+      const v = `AKSA ÇELİK AŞ - ${c}`;
+      return `<option value="${esc(v)}">${esc(v)}</option>`;
+    }).join('');
+    otherGroup.innerHTML = otherFirms.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
+    otherGroup.style.display = otherFirms.length ? '' : 'none';
+    const sel = $('selCompany');
+    if(selectedValue){
+      sel.value = selectedValue;
+    } else if(sel.value === '' ){
+      sel.selectedIndex = 0;
+    }
+  }
+
+  function isDuplicateFirm(val){
+    const lower = val.toLowerCase();
+    return otherFirms.some(f => f.toLowerCase() === lower)
+      || FIXED_BRANCHES.some(c => `aksa çelik aş - ${c}`.toLowerCase() === lower);
+  }
+
+  async function addNewFirma(){
+    const val = $('inpNewFirma').value.trim();
+    if(!val){
+      showToast('Firma / şube adı boş olamaz.', true);
+      return;
+    }
+    if(isDuplicateFirm(val)){
+      showToast('Bu firma / şube zaten listede mevcut.', true);
+      renderCompanyOptions(val);
+      $('addFirmaRow').classList.add('hidden');
+      $('inpNewFirma').value = '';
+      return;
+    }
+    otherFirms.push(val);
+    renderCompanyOptions(val);
+    $('inpNewFirma').value = '';
+    $('addFirmaRow').classList.add('hidden');
+    const ok = await saveFirms();
+    if(ok) showToast('Yeni firma / şube eklendi: ' + val);
+  }
+
+  // ---- çizim / proje tipi listesi ----
+  async function loadTypes(){
+    if(!storageAvailable()){
+      otherTypes = [];
+      renderTypeOptions();
+      return;
+    }
+    try{
+      const val = await getStorageItem(STORAGE_KEY_TYPES);
+      const parsed = val ? JSON.parse(val) : [];
+      otherTypes = Array.isArray(parsed) ? parsed : [];
+    }catch(e){
+      otherTypes = [];
+    }
+    renderTypeOptions();
+  }
+
+  async function saveTypes(){
+    if(!storageAvailable()) return true;
+    try{
+      const res = await setStorageItem(STORAGE_KEY_TYPES, JSON.stringify(otherTypes));
+      if(!res){ showToast('Çizim tipi listesi kaydedilemedi.', true); return false; }
+      return true;
+    }catch(e){
+      showToast('Depolama hatası: çizim tipi eklenemedi.', true);
+      return false;
+    }
+  }
+
+  function renderTypeOptions(selectedValue){
+    const fixedGroup = $('optgroupTypesFixed');
+    const otherGroup = $('optgroupTypesOther');
+    fixedGroup.innerHTML = FIXED_TYPES.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+    otherGroup.innerHTML = otherTypes.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+    otherGroup.style.display = otherTypes.length ? '' : 'none';
+    const sel = $('selType');
+    if(selectedValue){
+      sel.value = selectedValue;
+    } else if(sel.value === ''){
+      sel.selectedIndex = 0;
+    }
+  }
+
+  function isDuplicateType(val){
+    const lower = val.toLowerCase();
+    return otherTypes.some(t => t.toLowerCase() === lower)
+      || FIXED_TYPES.some(t => t.toLowerCase() === lower);
+  }
+
+  async function addNewType(){
+    const val = $('inpNewType').value.trim();
+    if(!val){
+      showToast('Çizim tipi boş olamaz.', true);
+      return;
+    }
+    if(isDuplicateType(val)){
+      showToast('Bu çizim tipi zaten listede mevcut.', true);
+      renderTypeOptions(val);
+      $('addTypeRow').classList.add('hidden');
+      $('inpNewType').value = '';
+      return;
+    }
+    otherTypes.push(val);
+    renderTypeOptions(val);
+    $('inpNewType').value = '';
+    $('addTypeRow').classList.add('hidden');
+    const ok = await saveTypes();
+    if(ok) showToast('Yeni çizim tipi eklendi: ' + val);
+  }
+
+  // ---- personel listesi ----
+  async function loadPersonnel(){
+    if(!storageAvailable()){
+      personnelList = [];
+      renderEmployeeOptions();
+      renderPersonnelPanel();
+      return;
+    }
+    try{
+      const val = await getStorageItem(STORAGE_KEY_PERSONNEL);
+      const parsed = val ? JSON.parse(val) : [];
+      personnelList = Array.isArray(parsed) ? parsed : [];
+    }catch(e){
+      personnelList = [];
+    }
+    renderEmployeeOptions();
+    renderPersonnelPanel();
+  }
+
+  async function savePersonnel(){
+    if(!storageAvailable()) return true;
+    try{
+      const res = await setStorageItem(STORAGE_KEY_PERSONNEL, JSON.stringify(personnelList));
+      if(!res){ showToast('Personel listesi kaydedilemedi.', true); return false; }
+      return true;
+    }catch(e){
+      showToast('Depolama hatası: personel kaydedilemedi.', true);
+      return false;
+    }
+  }
+
+  function isDuplicatePersonnel(val){
+    const lower = val.toLowerCase();
+    return personnelList.some(p => p.toLowerCase() === lower);
+  }
+
+  function hasActiveJob(name){
+    if(!name) return false;
+    const lower = name.trim().toLowerCase();
+    return projects.some(p => (p.employee||'').trim().toLowerCase() === lower && (p.status||'Bekliyor') === 'Bekliyor');
+  }
+
+  function activeJobOf(name){
+    if(!name) return null;
+    const lower = name.trim().toLowerCase();
+    return projects.find(p => (p.employee||'').trim().toLowerCase() === lower && (p.status||'Bekliyor') === 'Bekliyor') || null;
+  }
+
+  function renderEmployeeOptions(selectedValue){
+    const sel = $('selEmployee');
+    const current = selectedValue !== undefined ? selectedValue : sel.value;
+    sel.innerHTML = '<option value="">— Seçilmedi —</option>' +
+      personnelList.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+    sel.value = current || '';
+    if(sel.value !== (current || '')) sel.value = '';
+  }
+
+  function renderPersonnelPanel(){
+    const list = $('personnelList');
+    if(personnelList.length === 0){
+      list.innerHTML = `<div class="empty-state"><div class="big">Henüz personel eklenmemiş</div>Yukarıdaki alandan ilk personeli ekleyerek başlayın.</div>`;
+      return;
+    }
+    const sorted = [...personnelList].sort((a,b)=> a.localeCompare(b,'tr'));
+    list.innerHTML = sorted.map(name=>{
+      const job = activeJobOf(name);
+      const tag = job ? `<span class="personnel-busy-tag">AKTİF İŞ: ${esc(job.crmCode)}</span>` : '';
+      return `<div class="personnel-item">
+        <span class="personnel-name">${esc(name)}</span>
+        ${tag}
+        <button class="personnel-del" data-persondel="${esc(name)}" title="Personeli sil">✕</button>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('[data-persondel]').forEach(btn=>{
+      btn.addEventListener('click', ()=> removePersonnel(btn.dataset.persondel));
+    });
+  }
+
+  async function addPersonnel(){
+    const val = $('inpNewPersonnel').value.trim();
+    if(!val){
+      showToast('Personel adı boş olamaz.', true);
+      return;
+    }
+    if(isDuplicatePersonnel(val)){
+      showToast('Bu personel zaten listede mevcut.', true);
+      return;
+    }
+    personnelList.push(val);
+    $('inpNewPersonnel').value = '';
+    renderPersonnelPanel();
+    renderEmployeeOptions();
+    const ok = await savePersonnel();
+    if(ok) showToast('Personel eklendi: ' + val);
+  }
+
+  async function removePersonnel(name){
+    const job = activeJobOf(name);
+    const msg = job
+      ? `"${name}" adlı personelin şu anda bekleyen bir işi var (CRM: ${job.crmCode}). Yine de listeden silmek istiyor musunuz?`
+      : `"${name}" adlı personeli listeden silmek istediğinize emin misiniz?`;
+    if(!confirm(msg)) return;
+    personnelList = personnelList.filter(p => p !== name);
+    renderPersonnelPanel();
+    renderEmployeeOptions();
+    checkEmployeeWarning();
+    const ok = await savePersonnel();
+    if(ok) showToast('Personel silindi: ' + name);
+  }
+
+  function checkEmployeeWarning(){
+    const name = $('selEmployee').value.trim();
+    const warnBox = $('employeeWarning');
+    const job = name ? activeJobOf(name) : null;
+    if(job){
+      warnBox.textContent = `⚠ ${name} adlı personel bekleyen bir iş almıştır (CRM: ${job.crmCode} — ${job.company}).`;
+      warnBox.classList.remove('hidden');
+    } else {
+      warnBox.classList.add('hidden');
+    }
+  }
+
+  // ---- CRM code suggestion ----
+  function suggestNextCrm(){
+    const yy = String(new Date().getFullYear()).slice(-2);
+    let maxSeq = 0;
+    projects.forEach(p=>{
+      const m = /^(\d{2})-(\d{5})$/.exec((p.crmCode||'').trim());
+      if(m && m[1] === yy){
+        const seq = parseInt(m[2],10);
+        if(seq > maxSeq) maxSeq = seq;
+      }
+    });
+    const next = String(maxSeq+1).padStart(5,'0');
+    return `${yy}-${next}`;
+  }
+
+  function updateNextCodeHint(){
+    $('nextCodeHint').textContent = 'sıradaki kod: ' + suggestNextCrm();
+  }
+
+  // ---- rendering ----
+  function renderGrid(){
+    const q = (searchInput.value || '').trim().toLowerCase();
+    const filtered = projects
+      .filter(p=>{
+        if(!q) return true;
+        return (p.company||'').toLowerCase().includes(q)
+          || (p.crmCode||'').toLowerCase().includes(q)
+          || (p.buildingCode||'').toLowerCase().includes(q)
+          || (p.projectType||'').toLowerCase().includes(q);
+      })
+      .sort((a,b)=> (b.crmCode||'').localeCompare(a.crmCode||''));
+
+    countPill.textContent = `${filtered.length} proje${projects.length!==filtered.length ? ` (toplam ${projects.length})` : ''}`;
+
+    if(!loaded){
+      gridArea.innerHTML = `<div class="empty-state"><div class="big">Yükleniyor…</div>Proje listesi getiriliyor.</div>`;
+      return;
+    }
+
+    if(filtered.length === 0){
+      gridArea.innerHTML = projects.length === 0
+        ? `<div class="empty-state"><div class="big">Henüz proje eklenmemiş</div>"Yeni Talep Gir" sekmesinden ilk çizim talebini ekleyerek panoyu başlatın.</div>`
+        : `<div class="empty-state"><div class="big">Sonuç bulunamadı</div>Arama kriterlerinizi kontrol edin.</div>`;
+      return;
+    }
+
+    const bekleyen = filtered.filter(p => (p.status||'Bekliyor') === 'Bekliyor');
+    const yapilan = filtered.filter(p => (p.status||'Bekliyor') === 'Yapıldı');
+
+    gridArea.innerHTML = `
+      <div class="board-section">
+        <div class="board-section-head">
+          <span class="board-section-title">Devam Eden İşler</span>
+          <span class="board-section-count">${bekleyen.length}</span>
+        </div>
+        ${bekleyen.length
+          ? `<div class="grid">${bekleyen.map(cardHtml).join('')}</div>`
+          : `<div class="empty-state small">Devam eden iş yok.</div>`}
+      </div>
+      <div class="board-section">
+        <div class="board-section-head">
+          <span class="board-section-title">Yapılan İşler</span>
+          <span class="board-section-count">${yapilan.length}</span>
+        </div>
+        ${yapilan.length
+          ? `<div class="grid">${yapilan.map(cardHtml).join('')}</div>`
+          : `<div class="empty-state small">Henüz tamamlanan iş yok.</div>`}
+      </div>
+    `;
+
+    filtered.forEach(p=>{
+      const card = document.querySelector(`[data-card="${p.id}"]`);
+      if(card) card.addEventListener('click', ()=> startEditProject(p.id));
+      const btn = document.querySelector(`[data-del="${p.id}"]`);
+      if(btn) btn.addEventListener('click', (e)=>{ e.stopPropagation(); deleteProject(p.id); });
+      const toggleBtn = document.querySelector(`[data-toggle="${p.id}"]`);
+      if(toggleBtn) toggleBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleStatus(p.id); });
+    });
+  }
+
+  function esc(s){
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function cardHtml(p){
+    const status = p.status || 'Bekliyor';
+    const statusClass = status === 'Yapıldı' ? 'yapildi' : 'bekliyor';
+    return `
+      <div class="card" data-card="${p.id}">
+        <div class="card-head">
+          <span class="card-crm">${esc(p.crmCode)}</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="status-badge ${statusClass}" data-toggle="${p.id}" title="Durumu değiştir">${esc(status)}</button>
+            <button class="card-del" data-del="${p.id}" title="Kaydı sil">✕</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <p class="card-company">${esc(p.company)}</p>
+          <div class="card-row"><span>Bina Kodu</span><b>${esc(p.buildingCode || p.areaM2)}</b></div>
+          <div class="card-row"><span>Personel</span><b>${esc(p.employee) || '—'}</b></div>
+          <div class="card-row"><span>Tarih</span><b>${fmtDate(p.date)}</b></div>
+          ${p.notes ? `<div class="card-row"><span>Not</span><b style="font-family:'Inter',sans-serif;font-weight:500;">${esc(p.notes)}</b></div>` : ''}
+          ${p.fileName && p.fileData ? `
+            <div class="card-row" style="background:#e8f0fe; padding:6px 8px; border-radius:4px; margin-top:8px;">
+              <span>Dosya</span>
+              <a href="${p.fileData}" download="${esc(p.fileName)}" style="color:#1a73e8; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:4px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" onclick="event.stopPropagation();" title="${esc(p.fileName)}">
+                📁 ${esc(p.fileName)} (${formatBytes(p.fileSize)})
+              </a>
+            </div>
+          ` : ''}
+          <span class="card-type">${esc(p.projectType)}</span>
+        </div>
+      </div>`;
+  }
+
+  function startEditProject(id){
+    const p = projects.find(pr => pr.id === id);
+    if(!p) return;
+    editingProjectId = id;
+    
+    // Fill company
+    const baseCompany = p.company.replace('AKSA ÇELİK AŞ - ', '');
+    if (!FIXED_BRANCHES.includes(baseCompany) && !otherFirms.includes(p.company)) {
+      otherFirms.push(p.company);
+      renderCompanyOptions(p.company);
+    } else {
+      renderCompanyOptions(p.company);
+    }
+    
+    $('inpCrm').value = p.crmCode || '';
+    $('inpBuildingCode').value = p.buildingCode || '';
+    
+    // Fill type
+    if (!FIXED_TYPES.includes(p.projectType) && !otherTypes.includes(p.projectType)) {
+      otherTypes.push(p.projectType);
+      renderTypeOptions(p.projectType);
+    } else {
+      renderTypeOptions(p.projectType);
+    }
+    
+    $('selEmployee').value = p.employee || '';
+    $('inpDate').value = p.date || todayISO();
+    $('inpNotes').value = p.notes || '';
+    
+    // Handle attached file
+    if (p.fileName && p.fileData) {
+      attachedFile = {
+        name: p.fileName,
+        size: p.fileSize,
+        data: p.fileData
+      };
+      $('fileStatus').textContent = `Yüklü: ${p.fileName} (${formatBytes(p.fileSize)})`;
+      $('btnRemoveFile').classList.remove('hidden');
+    } else {
+      attachedFile = null;
+      $('inpFile').value = '';
+      $('fileStatus').textContent = '';
+      $('btnRemoveFile').classList.add('hidden');
+    }
+    
+    // Edit mode UI
+    $('tbTopTitle').textContent = 'TALEBİ DÜZENLE';
+    $('btnSubmit').textContent = 'Değişiklikleri Kaydet';
+    $('btnCancelEdit').classList.remove('hidden');
+    
+    switchTab('form');
+  }
+
+  function cancelEdit(){
+    resetForm();
+    switchTab('board');
+  }
+
+  async function toggleStatus(id){
+    const p = projects.find(pr => pr.id === id);
+    if(!p) return;
+    p.status = (p.status || 'Bekliyor') === 'Bekliyor' ? 'Yapıldı' : 'Bekliyor';
+    renderGrid();
+    renderPersonnelPanel();
+    checkEmployeeWarning();
+    const ok = await saveProjects();
+    if(ok) showToast(p.status === 'Bekliyor' ? 'İş bekliyor olarak işaretlendi.' : 'İş yapıldı olarak işaretlendi.');
+  }
+
+  async function deleteProject(id){
+    if(!confirm('Bu talebi listeden silmek istediğinize emin misiniz?')) return;
+    projects = projects.filter(p=>p.id !== id);
+    renderGrid();
+    updateNextCodeHint();
+    renderPersonnelPanel();
+    checkEmployeeWarning();
+    const ok = await saveProjects();
+    if(ok) showToast('Kayıt silindi.');
+  }
+
+  // ---- form validation & submit ----
+  function setInvalid(cellId, invalid){
+    $(cellId).classList.toggle('invalid', invalid);
+  }
+
+  function validateForm(){
+    let ok = true;
+    const company = $('selCompany').value.trim();
+    const companyInvalid = !company || company === '__add__';
+    const crm = $('inpCrm').value.trim();
+    const buildingCode = $('inpBuildingCode').value.trim();
+    const type = $('selType').value.trim();
+    const typeInvalid = !type || type === '__add__';
+
+    setInvalid('cell-company', companyInvalid); if(companyInvalid) ok = false;
+    setInvalid('cell-crm', !/^\d{2}-\d{5}$/.test(crm)); if(!/^\d{2}-\d{5}$/.test(crm)) ok = false;
+    setInvalid('cell-area', !buildingCode); if(!buildingCode) ok = false;
+    setInvalid('cell-type', typeInvalid); if(typeInvalid) ok = false;
+
+    return ok;
+  }
+
+  async function submitForm(){
+    if(!validateForm()){
+      showToast('Lütfen işaretli alanları kontrol edin.', true);
+      return;
+    }
+    const crm = $('inpCrm').value.trim();
+    if(projects.some(p => p.crmCode === crm && p.id !== editingProjectId)){
+      setInvalid('cell-crm', true);
+      $('cell-crm').querySelector('.field-err').textContent = 'Bu CRM kodu zaten kayıtlı.';
+      showToast('Bu CRM kodu zaten listede mevcut.', true);
+      return;
+    }
+
+    $('btnSubmit').disabled = true;
+
+    let ok = false;
+    if (editingProjectId) {
+      const p = projects.find(pr => pr.id === editingProjectId);
+      if (p) {
+        p.company = $('selCompany').value.trim();
+        p.crmCode = crm;
+        p.buildingCode = $('inpBuildingCode').value.trim();
+        p.projectType = $('selType').value.trim();
+        p.employee = $('selEmployee').value.trim();
+        p.date = $('inpDate').value || todayISO();
+        p.notes = $('inpNotes').value.trim();
+        p.fileName = attachedFile ? attachedFile.name : null;
+        p.fileSize = attachedFile ? attachedFile.size : null;
+        p.fileData = attachedFile ? attachedFile.data : null;
+        ok = await saveProjects();
+      }
+    } else {
+      const entry = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+        company: $('selCompany').value.trim(),
+        crmCode: crm,
+        buildingCode: $('inpBuildingCode').value.trim(),
+        projectType: $('selType').value.trim(),
+        employee: $('selEmployee').value.trim(),
+        status: 'Bekliyor',
+        date: $('inpDate').value || todayISO(),
+        notes: $('inpNotes').value.trim(),
+        fileName: attachedFile ? attachedFile.name : null,
+        fileSize: attachedFile ? attachedFile.size : null,
+        fileData: attachedFile ? attachedFile.data : null
+      };
+      projects.push(entry);
+      ok = await saveProjects();
+      if (!ok) {
+        projects = projects.filter(p => p.id !== entry.id);
+      }
+    }
+    
+    $('btnSubmit').disabled = false;
+
+    if(ok){
+      showToast(editingProjectId ? 'Değişiklikler kaydedildi.' : 'Talep listeye eklendi: ' + crm);
+      resetForm();
+      renderGrid();
+      updateNextCodeHint();
+      renderPersonnelPanel();
+      switchTab('board');
+    }
+  }
+
+  function resetForm(){
+    editingProjectId = null;
+    attachedFile = null;
+    $('inpFile').value = '';
+    $('fileStatus').textContent = '';
+    $('btnRemoveFile').classList.add('hidden');
+    ['inpBuildingCode','inpNotes'].forEach(id => $(id).value = '');
+    $('selCompany').selectedIndex = 0;
+    $('addFirmaRow').classList.add('hidden');
+    $('inpNewFirma').value = '';
+    $('selType').selectedIndex = 0;
+    $('addTypeRow').classList.add('hidden');
+    $('inpNewType').value = '';
+    $('selEmployee').value = '';
+    $('employeeWarning').classList.add('hidden');
+    $('inpDate').value = todayISO();
+    $('inpCrm').value = suggestNextCrm();
+    ['cell-company','cell-crm','cell-area','cell-type'].forEach(id => $(id).classList.remove('invalid'));
+    $('cell-crm').querySelector('.field-err').textContent = 'Format: YY-00000';
+    
+    $('tbTopTitle').textContent = 'ÇİZİM TALEP KİMLİK BLOĞU';
+    $('btnSubmit').textContent = 'Listeye Ekle';
+    $('btnCancelEdit').classList.add('hidden');
+  }
+
+  // ---- tabs ----
+  function switchTab(name){
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    $('panel-board').classList.toggle('hidden', name !== 'board');
+    $('panel-form').classList.toggle('hidden', name !== 'form');
+    $('panel-personnel').classList.toggle('hidden', name !== 'personnel');
+    if(name === 'form'){
+      updateNextCodeHint();
+      if(!$('inpCrm').value) $('inpCrm').value = suggestNextCrm();
+      if(!$('inpDate').value) $('inpDate').value = todayISO();
+      checkEmployeeWarning();
+    }
+    if(name === 'personnel'){
+      renderPersonnelPanel();
+    }
+  }
+
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click', ()=> switchTab(t.dataset.tab));
+  });
+
+  searchInput.addEventListener('input', renderGrid);
+  $('btnSubmit').addEventListener('click', submitForm);
+  $('btnCancelEdit').addEventListener('click', cancelEdit);
+  $('inpDate').value = todayISO();
+  renderCompanyOptions();
+  renderTypeOptions();
+
+  $('selCompany').addEventListener('change', ()=>{
+    if($('selCompany').value === '__add__'){
+      $('addFirmaRow').classList.remove('hidden');
+      $('inpNewFirma').focus();
+    } else {
+      $('addFirmaRow').classList.add('hidden');
+      setInvalid('cell-company', false);
+    }
+  });
+  $('btnAddFirma').addEventListener('click', addNewFirma);
+  $('inpNewFirma').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); addNewFirma(); }
+  });
+
+  $('selType').addEventListener('change', ()=>{
+    if($('selType').value === '__add__'){
+      $('addTypeRow').classList.remove('hidden');
+      $('inpNewType').focus();
+    } else {
+      $('addTypeRow').classList.add('hidden');
+      setInvalid('cell-type', false);
+    }
+  });
+  $('btnAddType').addEventListener('click', addNewType);
+  $('inpNewType').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); addNewType(); }
+  });
+
+  $('selEmployee').addEventListener('change', checkEmployeeWarning);
+
+  $('inpFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) {
+      attachedFile = null;
+      $('fileStatus').textContent = '';
+      $('btnRemoveFile').classList.add('hidden');
+      return;
+    }
+    
+    const maxSize = 2.5 * 1024 * 1024; 
+    if (file.size > maxSize) {
+      showToast('Dosya boyutu 2.5MB\'tan küçük olmalıdır. Büyük dosyalar yerel tarayıcı hafızasına kaydedilemez.', true);
+      $('inpFile').value = '';
+      attachedFile = null;
+      $('fileStatus').textContent = '';
+      $('btnRemoveFile').classList.add('hidden');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      attachedFile = {
+        name: file.name,
+        size: file.size,
+        data: evt.target.result
+      };
+      $('fileStatus').textContent = `Hazır: ${file.name} (${formatBytes(file.size)})`;
+      $('btnRemoveFile').classList.remove('hidden');
+    };
+    reader.onerror = function() {
+      showToast('Dosya okunurken hata oluştu.', true);
+      $('inpFile').value = '';
+      attachedFile = null;
+      $('fileStatus').textContent = '';
+      $('btnRemoveFile').classList.add('hidden');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  $('btnRemoveFile').addEventListener('click', () => {
+    $('inpFile').value = '';
+    attachedFile = null;
+    $('fileStatus').textContent = '';
+    $('btnRemoveFile').classList.add('hidden');
+  });
+
+  $('btnAddPersonnel').addEventListener('click', addPersonnel);
+  $('inpNewPersonnel').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); addPersonnel(); }
+  });
+
+  const now = new Date();
+  $('revTag').textContent = now.toLocaleDateString('tr-TR') + ' · REV-01';
+  $('dateNow').textContent = now.toLocaleDateString('tr-TR');
+
+  let hasCloudStorage = false;
+  let hasLocalStorage = false;
+  try {
+    hasCloudStorage = typeof window !== 'undefined' && !!window.storage && typeof window.storage.get === 'function';
+  } catch (e) {}
+  try {
+    hasLocalStorage = typeof window !== 'undefined' && !!window.localStorage;
+  } catch (e) {}
+
+  if (hasCloudStorage) {
+    $('storageWarning').classList.add('hidden');
+  } else if (hasLocalStorage) {
+    $('storageWarning').textContent = 'ℹ Bilgiler bu tarayıcıya (Local Storage) kaydediliyor. Sayfayı yenilediğinizde veya kapatıp açtığınızda kaybolmaz. Ancak başka kullanıcılar veya farklı tarayıcılar bu kayıtları göremez.';
+    $('storageWarning').style.background = '#e1f5fe';
+    $('storageWarning').style.border = '1.5px solid #0288d1';
+    $('storageWarning').style.color = '#01579b';
+    $('storageWarning').classList.remove('hidden');
+  } else {
+    $('storageWarning').classList.remove('hidden');
+  }
+
+  loadFirms();
+  loadTypes();
+  loadPersonnel();
+  loadProjects();
+})();
+</script>
+</body>
+</html>
