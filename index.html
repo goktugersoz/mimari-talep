@@ -950,9 +950,8 @@
           </div>
 
           <div class="cell" id="cell-area">
-            <label>Bina Kodu</label>
+            <label>Bina Kodu (Opsiyonel)</label>
             <input id="inpBuildingCode" type="text" placeholder="örn. AK-500">
-            <div class="field-err">Bina kodu zorunludur.</div>
           </div>
 
           <div class="cell" id="cell-m2">
@@ -1124,6 +1123,22 @@
         const sizes = ['B', 'KB', 'MB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+      }
+
+      function formatBuildingCode(val) {
+        val = val.trim();
+        if (!val) return '';
+        if (/^\d+$/.test(val)) {
+          return 'AK-' + val;
+        }
+        const match = /^(ak)[-\s]?(\d+)$/i.exec(val);
+        if (match) {
+          return 'AK-' + match[2];
+        }
+        if (val.toLowerCase().startsWith('ak')) {
+          return 'AK' + val.slice(2);
+        }
+        return val;
       }
 
       const $ = (id) => document.getElementById(id);
@@ -2098,14 +2113,12 @@
         const company = $('selCompany').value.trim();
         const companyInvalid = !company || company === '__add__';
         const crm = $('inpCrm').value.trim();
-        const buildingCode = $('inpBuildingCode').value.trim();
         const areaM2 = $('inpAreaM2').value.trim();
         const type = $('selType').value.trim();
         const typeInvalid = !type || type === '__add__';
 
         setInvalid('cell-company', companyInvalid); if (companyInvalid) ok = false;
         setInvalid('cell-crm', !/^\d{2}-\d{5}$/.test(crm)); if (!/^\d{2}-\d{5}$/.test(crm)) ok = false;
-        setInvalid('cell-area', !buildingCode); if (!buildingCode) ok = false;
         setInvalid('cell-m2', !areaM2); if (!areaM2) ok = false;
         setInvalid('cell-type', typeInvalid); if (typeInvalid) ok = false;
 
@@ -2116,6 +2129,10 @@
         if (!editingProjectId) {
           $('inpCrm').value = suggestNextCrm();
         }
+        
+        const formattedCode = formatBuildingCode($('inpBuildingCode').value);
+        $('inpBuildingCode').value = formattedCode;
+
         if (!validateForm()) {
           showToast('Lütfen işaretli alanları kontrol edin.', true);
           return;
