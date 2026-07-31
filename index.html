@@ -960,6 +960,11 @@
             <div class="field-err">Bina alanı zorunludur.</div>
           </div>
 
+          <div class="cell" id="cell-customer">
+            <label>Müşteri İsmi (Opsiyonel)</label>
+            <input id="inpCustomerName" type="text" placeholder="örn. İsmail Atsız">
+          </div>
+
           <div class="cell full" id="cell-type">
             <label>Çizim / Proje Tipi</label>
             <div class="select-wrap">
@@ -1033,6 +1038,21 @@
       <p class="panel-lead">Sisteme giriş yapabilecek yeni kullanıcılar oluşturabilir, şifre belirleyebilir ve
         yetkilerini yönetebilirsiniz.</p>
 
+      <!-- GENEL AYARLAR -->
+      <div class="titleblock" style="max-width: 560px; margin: 0 0 30px 0;">
+        <div class="tb-top"><span>GENEL PROJE AYARLARI</span></div>
+        <div class="tb-grid" style="grid-template-columns: 1fr;">
+          <div class="cell">
+            <label>Sıradaki CRM Kodu Başlangıcı (örn. 26-00370 veya 27-00200)</label>
+            <input type="text" id="inpCrmStartCode" placeholder="örn. 26-00370" style="font-family:'JetBrains Mono',monospace;">
+            <div class="field-err">Lütfen geçerli bir CRM kodu girin (Format: YY-00000).</div>
+          </div>
+        </div>
+        <div class="tb-actions" style="justify-content: flex-end;">
+          <button class="btn-submit" id="btnAdminSaveSettings">Ayarları Kaydet</button>
+        </div>
+      </div>
+
       <div class="titleblock" style="max-width: 560px; margin: 0 0 30px 0;">
         <div class="tb-top"><span>YENİ KULLANICI OLUŞTUR</span></div>
         <div class="tb-grid" style="grid-template-columns: 1fr 1fr;">
@@ -1102,6 +1122,136 @@
       let editingProjectId = null;
       let attachedFile = null;
       let currentView = 'grid';
+      let crmStartCode = String(new Date().getFullYear()).slice(-2) + '-00001';
+
+      async function saveSettings(codeVal) {
+        crmStartCode = codeVal.trim();
+        if (useSupabase) {
+          try {
+            const notesRaw = JSON.stringify({ crmStartCode: crmStartCode });
+            const { data } = await supabase.from('projects').select('id').eq('id', '__settings__');
+            if (data && data.length > 0) {
+              await supabase.from('projects').update({ notes: notesRaw }).eq('id', '__settings__');
+            } else {
+              await supabase.from('projects').insert({
+                id: '__settings__',
+                company: 'SYSTEM_CONFIG',
+                crm_code: '00-00000',
+                notes: notesRaw,
+                project_type: 'Config',
+                status: 'System',
+                date: todayISO()
+              });
+            }
+          } catch (e) {
+            console.error("saveSettings Supabase error:", e);
+          }
+        } else {
+          await setStorageItem('mimari-crm-start-code', crmStartCode);
+        }
+      }
+
+      async function handleSaveSettings() {
+        const val = $('inpCrmStartCode').value.trim();
+        if (!/^\d{2}-\d{5}$/.test(val)) {
+          showToast('Lütfen geçerli bir CRM kodu girin (Format: YY-00000).', true);
+          return;
+        }
+        $('btnAdminSaveSettings').disabled = true;
+        await saveSettings(val);
+        updateNextCodeHint();
+        if (!$('inpCrm').value || !editingProjectId) {
+          $('inpCrm').value = suggestNextCrm();
+        }
+        $('btnAdminSaveSettings').disabled = false;
+        showToast('Genel ayarlar kaydedildi.');
+      }
+
+      function parseNotesField(notesStr) {
+        notesStr = (notesStr || '').trim();
+        if (notesStr.startsWith('{') && notesStr.endsWith('}')) {
+          try {
+            const parsed = JSON.parse(notesStr);
+            if (parsed && typeof parsed === 'object') {
+              return {
+                customerName: parsed.customerName || '',
+                notes: parsed.notes || ''
+              };
+            }
+          } catch (e) {
+            // Not valid JSON
+          }
+        }
+        return {
+          customerName: '',
+          notes: notesStr
+        };
+      }
+
+      function serializeNotesField(customerName, notes) {
+        if (!customerName) return notes;
+        return JSON.stringify({
+          customerName: customerName.trim(),
+          notes: (notes || '').trim()
+        });
+      }
+
+      window.downloadProjectFileCustom = async function(e, url, originalName, id) {
+        e.preventDefault();
+        e.stopPropagation();
+        const p = projects.find(pr => pr.id === id);
+        if (!p) return;
+        
+        // Build the beautiful filename:
+        // FİRMA ADI - CRM KODU - MÜŞTERİ İSMİ - BİNA KODU - BİNA ALANI - KONUT TİPİ.uzanti
+        const parts = [];
+        if (p.company) parts.push(p.company.trim());
+        if (p.crmCode) parts.push(p.crmCode.trim());
+        if (p.customerName) parts.push(p.customerName.trim());
+        if (p.buildingCode) parts.push(p.buildingCode.trim());
+        if (p.areaM2) {
+          const areaStr = p.areaM2.toString().includes('m²') ? p.areaM2.trim() : p.areaM2.trim() + ' m²';
+          parts.push(areaStr);
+        }
+        if (p.projectType) parts.push(p.projectType.trim());
+        
+        let customName = parts.join(' - ');
+        if (!customName) {
+          customName = originalName || 'cizim';
+        } else {
+          const ext = originalName ? originalName.split('.').pop() : 'dwg';
+          customName = customName + '.' + ext;
+        }
+        
+        // Sanitize for illegal Windows filename characters: \ / : * ? " < > |
+        customName = customName.replace(/[\\/:*?"<>|]/g, '_');
+        
+        showToast('Dosya indiriliyor...');
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('HTTP error ' + res.status);
+          const blob = await res.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = customName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
+          showToast('Dosya indirildi.');
+        } catch (err) {
+          console.error("Custom download failed: ", err);
+          // Fallback if fetch fails (e.g. CORS block)
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.download = customName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+      };
 
       // Supabase storage helper
       async function uploadProjectFile(fileObj) {
@@ -1455,23 +1605,44 @@
         }
         if (useSupabase) {
           try {
+            const { data: settingsData } = await supabase.from('projects').select('notes').eq('id', '__settings__');
+            if (settingsData && settingsData.length > 0) {
+              try {
+                const parsed = JSON.parse(settingsData[0].notes);
+                crmStartCode = parsed.crmStartCode || (parsed.crmStartSeq ? (String(new Date().getFullYear()).slice(-2) + '-' + String(parsed.crmStartSeq).padStart(5, '0')) : crmStartCode);
+              } catch (e) {
+                const oldSeq = parseInt(settingsData[0].notes);
+                if (!isNaN(oldSeq)) {
+                  crmStartCode = String(new Date().getFullYear()).slice(-2) + '-' + String(oldSeq).padStart(5, '0');
+                }
+              }
+            }
+          } catch (e) {
+            console.error("Failed to load settings from Supabase:", e);
+          }
+
+          try {
             const { data, error } = await supabase.from('projects').select('*');
             if (error) throw error;
-            projects = (data || []).map(p => ({
-              id: p.id,
-              company: p.company,
-              crmCode: p.crm_code,
-              buildingCode: p.building_code,
-              areaM2: p.area_m2,
-              projectType: p.project_type,
-              employee: p.employee,
-              status: p.status,
-              date: p.date,
-              notes: p.notes,
-              fileName: p.file_name,
-              fileSize: p.file_size ? parseInt(p.file_size) : null,
-              fileData: p.file_url
-            }));
+            projects = (data || []).filter(p => p.id !== '__settings__').map(p => {
+              const notesParsed = parseNotesField(p.notes);
+              return {
+                id: p.id,
+                company: p.company,
+                crmCode: p.crm_code,
+                buildingCode: p.building_code,
+                areaM2: p.area_m2,
+                projectType: p.project_type,
+                employee: p.employee,
+                status: p.status,
+                date: p.date,
+                notes: notesParsed.notes,
+                customerName: notesParsed.customerName,
+                fileName: p.file_name,
+                fileSize: p.file_size ? parseInt(p.file_size) : null,
+                fileData: p.file_url
+              };
+            });
           } catch (e) {
             console.error("Supabase load projects error:", e);
             showToast("Veriler yüklenirken hata oluştu: " + e.message, true);
@@ -1479,9 +1650,28 @@
           }
         } else {
           try {
+            const val = await getStorageItem('mimari-crm-start-code');
+            if (val) {
+              crmStartCode = val;
+            } else {
+              const oldVal = await getStorageItem('mimari-crm-start-seq');
+              if (oldVal) {
+                crmStartCode = String(new Date().getFullYear()).slice(-2) + '-' + String(oldVal).padStart(5, '0');
+              }
+            }
+          } catch (e) {}
+
+          try {
             const val = await getStorageItem(STORAGE_KEY);
             const parsed = val ? JSON.parse(val) : [];
-            projects = Array.isArray(parsed) ? parsed : [];
+            projects = Array.isArray(parsed) ? parsed.filter(p => p.id !== '__settings__').map(p => {
+              const notesParsed = parseNotesField(p.notes);
+              return {
+                ...p,
+                notes: notesParsed.notes,
+                customerName: p.customerName || notesParsed.customerName || ''
+              };
+            }) : [];
           } catch (e) {
             projects = [];
           }
@@ -1869,17 +2059,24 @@
 
       // ---- CRM code suggestion ----
       function suggestNextCrm() {
-        const yy = String(new Date().getFullYear()).slice(-2);
-        let maxSeq = 0;
+        const matchStart = /^(\d{2})-(\d{5})$/.exec(crmStartCode.trim());
+        let configPrefix = String(new Date().getFullYear()).slice(-2);
+        let startSeq = 1;
+        if (matchStart) {
+          configPrefix = matchStart[1];
+          startSeq = parseInt(matchStart[2], 10);
+        }
+
+        let maxSeq = startSeq - 1;
         projects.forEach(p => {
           const m = /^(\d{2})-(\d{5})$/.exec((p.crmCode || '').trim());
-          if (m && m[1] === yy) {
+          if (m && m[1] === configPrefix) {
             const seq = parseInt(m[2], 10);
             if (seq > maxSeq) maxSeq = seq;
           }
         });
         const next = String(maxSeq + 1).padStart(5, '0');
-        return `${yy}-${next}`;
+        return `${configPrefix}-${next}`;
       }
 
       function updateNextCodeHint() {
@@ -1992,11 +2189,12 @@
           <div class="card-row"><span>Bina Alanı</span><b>${p.areaM2 ? (p.areaM2.toString().includes('m²') ? esc(p.areaM2) : esc(p.areaM2) + ' m²') : '—'}</b></div>
           <div class="card-row"><span>Personel</span><b>${esc(p.employee) || '—'}</b></div>
           <div class="card-row"><span>Tarih</span><b>${fmtDate(p.date)}</b></div>
+          ${p.customerName ? `<div class="card-row"><span>Müşteri</span><b>${esc(p.customerName)}</b></div>` : ''}
           ${p.notes ? `<div class="card-row"><span>Not</span><b style="font-family:'Inter',sans-serif;font-weight:500;">${esc(p.notes)}</b></div>` : ''}
           ${p.fileName && p.fileData ? `
             <div class="card-row" style="background:#e8f0fe; padding:6px 8px; border-radius:4px; margin-top:8px;">
               <span>Dosya</span>
-              <a href="${p.fileData}" download="${esc(p.fileName)}" style="color:#1a73e8; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:4px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" onclick="event.stopPropagation();" title="${esc(p.fileName)}">
+              <a href="${p.fileData}" style="color:#1a73e8; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:4px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" onclick="downloadProjectFileCustom(event, '${esc(p.fileData)}', '${esc(p.fileName)}', '${esc(p.id)}')" title="${esc(p.fileName)}">
                 📁 ${esc(p.fileName)} (${formatBytes(p.fileSize)})
               </a>
             </div>
@@ -2027,6 +2225,7 @@
         $('inpCrm').value = p.crmCode || '';
         $('inpBuildingCode').value = p.buildingCode || '';
         $('inpAreaM2').value = p.areaM2 || '';
+        $('inpCustomerName').value = p.customerName || '';
 
         // Fill type
         if (!FIXED_TYPES.includes(p.projectType) && !otherTypes.includes(p.projectType)) {
@@ -2197,10 +2396,12 @@
               const company = $('selCompany').value.trim();
               const buildingCode = $('inpBuildingCode').value.trim();
               const areaM2 = $('inpAreaM2').value.trim();
+              const customerName = $('inpCustomerName').value.trim();
               const projectType = $('selType').value.trim();
               const employee = $('selEmployee').value.trim();
               const date = $('inpDate').value || todayISO();
               const notes = $('inpNotes').value.trim();
+              const notesRaw = serializeNotesField(customerName, notes);
               const fileName = attachedFile ? attachedFile.name : null;
               const fileSize = attachedFile ? attachedFile.size : null;
               const fileData = fileUrl;
@@ -2214,7 +2415,7 @@
                   project_type: projectType,
                   employee,
                   date,
-                  notes,
+                  notes: notesRaw,
                   file_name: fileName,
                   file_size: fileSize,
                   file_url: fileUrl
@@ -2231,6 +2432,7 @@
               p.employee = employee;
               p.date = date;
               p.notes = notes;
+              p.customerName = customerName;
               p.fileName = fileName;
               p.fileSize = fileSize;
               p.fileData = fileData;
@@ -2242,10 +2444,12 @@
             const company = $('selCompany').value.trim();
             const buildingCode = $('inpBuildingCode').value.trim();
             const areaM2 = $('inpAreaM2').value.trim();
+            const customerName = $('inpCustomerName').value.trim();
             const projectType = $('selType').value.trim();
             const employee = $('selEmployee').value.trim();
             const date = $('inpDate').value || todayISO();
             const notes = $('inpNotes').value.trim();
+            const notesRaw = serializeNotesField(customerName, notes);
             const fileName = attachedFile ? attachedFile.name : null;
             const fileSize = attachedFile ? attachedFile.size : null;
             const fileData = fileUrl;
@@ -2261,7 +2465,7 @@
                 employee,
                 status: 'Bekliyor',
                 date,
-                notes,
+                notes: notesRaw,
                 file_name: fileName,
                 file_size: fileSize,
                 file_url: fileUrl
@@ -2276,6 +2480,7 @@
               crmCode: crm,
               buildingCode,
               areaM2,
+              customerName,
               projectType,
               employee,
               status: 'Bekliyor',
@@ -2316,7 +2521,7 @@
         $('inpFile').value = '';
         $('fileStatus').textContent = '';
         $('btnRemoveFile').classList.add('hidden');
-        ['inpBuildingCode', 'inpAreaM2', 'inpNotes'].forEach(id => $(id).value = '');
+        ['inpBuildingCode', 'inpAreaM2', 'inpNotes', 'inpCustomerName'].forEach(id => $(id).value = '');
         $('selCompany').selectedIndex = 0;
         $('addFirmaRow').classList.add('hidden');
         $('inpNewFirma').value = '';
@@ -2358,6 +2563,7 @@
         }
         if (name === 'admin') {
           renderUsersPanel();
+          $('inpCrmStartCode').value = crmStartCode;
         }
       }
 
@@ -2375,6 +2581,7 @@
       $('inpAdminNewPass').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); addAdminUser(); }
       });
+      $('btnAdminSaveSettings').addEventListener('click', handleSaveSettings);
 
       function updateViewToggleBtn() {
         if (currentView === 'list') {
