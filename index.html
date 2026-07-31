@@ -1725,14 +1725,18 @@
           list.innerHTML = `<div class="empty-state"><div class="big">Henüz personel eklenmemiş</div>Yukarıdaki alandan ilk personeli ekleyerek başlayın.</div>`;
           return;
         }
+        const isUserAdmin = currentUser && currentUser.role === 'admin';
         const sorted = [...personnelList].sort((a, b) => a.localeCompare(b, 'tr'));
         list.innerHTML = sorted.map(name => {
           const job = activeJobOf(name);
           const tag = job ? `<span class="personnel-busy-tag">AKTİF İŞ: ${esc(job.crmCode)}</span>` : '';
+          const delBtn = isUserAdmin
+            ? `<button class="personnel-del" data-persondel="${esc(name)}" title="Personeli sil">✕</button>`
+            : '';
           return `<div class="personnel-item">
         <span class="personnel-name">${esc(name)}</span>
         ${tag}
-        <button class="personnel-del" data-persondel="${esc(name)}" title="Personeli sil">✕</button>
+        ${delBtn}
       </div>`;
         }).join('');
         list.querySelectorAll('[data-persondel]').forEach(btn => {
@@ -1741,6 +1745,10 @@
       }
 
       async function addPersonnel() {
+        if (!currentUser || currentUser.role !== 'admin') {
+          showToast('Sadece yöneticiler personel ekleyebilir.', true);
+          return;
+        }
         const val = $('inpNewPersonnel').value.trim();
         if (!val) {
           showToast('Personel adı boş olamaz.', true);
@@ -1771,6 +1779,10 @@
       }
 
       async function removePersonnel(name) {
+        if (!currentUser || currentUser.role !== 'admin') {
+          showToast('Sadece yöneticiler personel silebilir.', true);
+          return;
+        }
         const job = activeJobOf(name);
         const msg = job
           ? `"${name}" adlı personelin şu anda bekleyen bir işi var (CRM: ${job.crmCode}). Yine de listeden silmek istiyor musunuz?`
@@ -2287,6 +2299,11 @@
           checkEmployeeWarning();
         }
         if (name === 'personnel') {
+          const isUserAdmin = currentUser && currentUser.role === 'admin';
+          const addRow = document.querySelector('.personnel-add-row');
+          if (addRow) {
+            addRow.style.display = isUserAdmin ? 'flex' : 'none';
+          }
           renderPersonnelPanel();
         }
         if (name === 'admin') {
