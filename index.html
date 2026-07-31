@@ -712,7 +712,149 @@
         border-right: none !important;
       }
     }
+
+    /* ---- LIST (HORIZONTAL) VIEW OVERRIDES ---- */
+    .grid.list-view {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .grid.list-view .card {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      min-height: auto;
+      overflow: hidden;
+    }
+
+    .grid.list-view .card-head {
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      width: 140px;
+      min-width: 140px;
+      border-right: 1.5px solid var(--line);
+      border-bottom: none;
+      padding: 12px;
+      text-align: center;
+      gap: 8px;
+      background: var(--ink);
+    }
+
+    .grid.list-view .card-body {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      flex: 1;
+      padding: 12px 20px;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .grid.list-view .card-company {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      flex: 1.5;
+      min-width: 160px;
+    }
+
+    .grid.list-view .card-row {
+      border-top: none;
+      border-left: 1px dashed var(--grid-line);
+      padding: 4px 0 4px 20px;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      flex: 1;
+      min-width: 110px;
+      margin: 0;
+      height: auto;
+    }
+
+    /* Style file attachments and notes in list view so they look like normal columns */
+    .grid.list-view .card-row[style*="background"] {
+      border-left: 1px dashed var(--grid-line);
+      background: transparent !important;
+      padding: 4px 0 4px 20px !important;
+      margin: 0 !important;
+      border-radius: 0;
+      flex: 1.5;
+      min-width: 140px;
+    }
+
+    .grid.list-view .card-row[style*="background"] span {
+      display: block;
+    }
+
+    .grid.list-view .card-row[style*="background"] a {
+      max-width: 130px !important;
+    }
+
+    .grid.list-view .card-type {
+      margin-top: 0;
+      margin-left: auto;
+      white-space: nowrap;
+      flex: none;
+    }
+
+    @media (max-width: 900px) {
+      .grid.list-view .card {
+        flex-direction: column;
+        overflow: visible;
+      }
+
+      .grid.list-view .card-head {
+        width: 100%;
+        flex-direction: row;
+        justify-content: space-between;
+        border-right: none;
+        border-bottom: 1.5px solid var(--line);
+      }
+
+      .grid.list-view .card-body {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 12px;
+        gap: 0;
+      }
+
+      .grid.list-view .card-company {
+        margin-bottom: 8px;
+        font-size: 16px;
+      }
+
+      .grid.list-view .card-row {
+        border-left: none;
+        border-top: 1px dashed var(--grid-line);
+        padding: 6px 0;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        flex: none;
+        min-width: 0;
+      }
+
+      .grid.list-view .card-row[style*="background"] {
+        border-left: none !important;
+        background: #e8f0fe !important;
+        padding: 6px 8px !important;
+        margin-top: 8px !important;
+        border-radius: 4px;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+      }
+
+      .grid.list-view .card-type {
+        margin-left: 0;
+        align-self: flex-start;
+        margin-top: 8px;
+      }
+    }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
@@ -772,6 +914,10 @@
       <div class="toolbar">
         <input id="searchInput" type="text" placeholder="Firma, CRM kodu veya çizim tipine göre ara…">
         <span class="count-pill" id="countPill">0 proje</span>
+        <button id="btnToggleView" class="btn-cancel-edit"
+          style="padding: 9px 15px; font-size: 13px; display: flex; align-items: center; gap: 6px; margin: 0; height: auto;">
+          <span id="toggleViewIcon">📋</span> <span id="toggleViewText">Yatay Liste</span>
+        </button>
       </div>
       <div id="gridArea"></div>
     </div>
@@ -807,6 +953,12 @@
             <label>Bina Kodu</label>
             <input id="inpBuildingCode" type="text" placeholder="örn. AK-500">
             <div class="field-err">Bina kodu zorunludur.</div>
+          </div>
+
+          <div class="cell" id="cell-m2">
+            <label>Bina Alanı (m²)</label>
+            <input id="inpAreaM2" type="text" placeholder="örn. 100 m² veya 120">
+            <div class="field-err">Bina alanı zorunludur.</div>
           </div>
 
           <div class="cell full" id="cell-type">
@@ -920,6 +1072,18 @@
 
   <script>
     (function () {
+      // --- Supabase Config ---
+      const SUPABASE_URL = 'https://alavnnyyyxhntmylduup.supabase.co/rest/v1/';
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFsYXZubnl5eXhobnRteWxkdXVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0ODk3NTgsImV4cCI6MjEwMTA2NTc1OH0.prWAVrUS195htU1xBih_r0IXizOSwodIFN9MhJTvf5Y';
+
+      let supabase = null;
+      let useSupabase = false;
+      if (SUPABASE_URL && !SUPABASE_URL.includes('YOUR_SUPABASE_URL') && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('YOUR_SUPABASE_ANON_KEY') && window.supabase) {
+        const cleanUrl = SUPABASE_URL.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '').trim();
+        supabase = window.supabase.createClient(cleanUrl, SUPABASE_ANON_KEY);
+        useSupabase = true;
+      }
+
       const STORAGE_KEY = 'mimari-projeler-listesi';
       const STORAGE_KEY_FIRMS = 'sube-firma-listesi';
       const STORAGE_KEY_TYPES = 'cizim-tipi-listesi';
@@ -933,6 +1097,26 @@
       let loaded = false;
       let editingProjectId = null;
       let attachedFile = null;
+      let currentView = 'grid';
+
+      // Supabase storage helper
+      async function uploadProjectFile(fileObj) {
+        if (!fileObj.fileRaw) return fileObj.data;
+        try {
+          const fileExt = fileObj.name.split('.').pop();
+          const cleanName = fileObj.name.replace(/[^a-zA-Z0-9]/g, '_');
+          const path = `${Date.now()}_${cleanName}.${fileExt}`;
+          const { data, error } = await supabase.storage
+            .from('drawings')
+            .upload(path, fileObj.fileRaw, { cacheControl: '3600', upsert: true });
+          if (error) throw error;
+          const { data: urlData } = supabase.storage.from('drawings').getPublicUrl(path);
+          return urlData.publicUrl;
+        } catch (e) {
+          console.error("Supabase File Upload Error:", e);
+          throw new Error("Dosya yüklenemedi: " + e.message);
+        }
+      }
 
       function formatBytes(bytes) {
         if (!bytes) return '0 B';
@@ -964,17 +1148,33 @@
           renderUsersPanel();
           return;
         }
-        try {
-          const val = await getStorageItem(STORAGE_KEY_USERS);
-          const parsed = val ? JSON.parse(val) : [];
-          users = Array.isArray(parsed) && parsed.length ? parsed : [{ username: 'admin', password: '123', role: 'admin' }];
-        } catch (e) {
-          users = [{ username: 'admin', password: '123', role: 'admin' }];
+        if (useSupabase) {
+          try {
+            const { data, error } = await supabase.from('users').select('*');
+            if (error) throw error;
+            users = data || [];
+            if (!users.length) {
+              users = [{ username: 'admin', password: '123', role: 'admin' }];
+              await supabase.from('users').insert(users[0]);
+            }
+          } catch (e) {
+            console.error("loadUsers error:", e);
+            users = [{ username: 'admin', password: '123', role: 'admin' }];
+          }
+        } else {
+          try {
+            const val = await getStorageItem(STORAGE_KEY_USERS);
+            const parsed = val ? JSON.parse(val) : [];
+            users = Array.isArray(parsed) && parsed.length ? parsed : [{ username: 'admin', password: '123', role: 'admin' }];
+          } catch (e) {
+            users = [{ username: 'admin', password: '123', role: 'admin' }];
+          }
         }
         renderUsersPanel();
       }
 
       async function saveUsers() {
+        if (useSupabase) return true;
         if (!storageAvailable()) return true;
         try {
           const res = await setStorageItem(STORAGE_KEY_USERS, JSON.stringify(users));
@@ -1093,6 +1293,17 @@
           return;
         }
 
+        if (useSupabase) {
+          try {
+            const { error } = await supabase.from('users').insert({ username: uName, password: uPass, role: uRole });
+            if (error) throw error;
+          } catch (e) {
+            console.error(e);
+            showToast('Kullanıcı eklenemedi: ' + e.message, true);
+            return;
+          }
+        }
+
         users.push({ username: uName, password: uPass, role: uRole });
 
         if (!personnelList.some(p => p.toLowerCase() === uName.toLowerCase())) {
@@ -1114,6 +1325,17 @@
           return;
         }
         if (!confirm(`"${username}" kullanıcısını silmek istediğinize emin misiniz?`)) return;
+
+        if (useSupabase) {
+          try {
+            const { error } = await supabase.from('users').delete().eq('username', username);
+            if (error) throw error;
+          } catch (e) {
+            console.error(e);
+            showToast('Kullanıcı silinemedi: ' + e.message, true);
+            return;
+          }
+        }
 
         users = users.filter(x => x.username !== username);
         renderUsersPanel();
@@ -1184,12 +1406,38 @@
           checkEmployeeWarning();
           return;
         }
-        try {
-          const val = await getStorageItem(STORAGE_KEY);
-          const parsed = val ? JSON.parse(val) : [];
-          projects = Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-          projects = [];
+        if (useSupabase) {
+          try {
+            const { data, error } = await supabase.from('projects').select('*');
+            if (error) throw error;
+            projects = (data || []).map(p => ({
+              id: p.id,
+              company: p.company,
+              crmCode: p.crm_code,
+              buildingCode: p.building_code,
+              areaM2: p.area_m2,
+              projectType: p.project_type,
+              employee: p.employee,
+              status: p.status,
+              date: p.date,
+              notes: p.notes,
+              fileName: p.file_name,
+              fileSize: p.file_size ? parseInt(p.file_size) : null,
+              fileData: p.file_url
+            }));
+          } catch (e) {
+            console.error("Supabase load projects error:", e);
+            showToast("Veriler yüklenirken hata oluştu: " + e.message, true);
+            projects = [];
+          }
+        } else {
+          try {
+            const val = await getStorageItem(STORAGE_KEY);
+            const parsed = val ? JSON.parse(val) : [];
+            projects = Array.isArray(parsed) ? parsed : [];
+          } catch (e) {
+            projects = [];
+          }
         }
         loaded = true;
         renderGrid();
@@ -1199,6 +1447,7 @@
       }
 
       async function saveProjects() {
+        if (useSupabase) return true;
         if (!storageAvailable()) return true;
         try {
           const res = await setStorageItem(STORAGE_KEY, JSON.stringify(projects));
@@ -1217,17 +1466,29 @@
           renderCompanyOptions();
           return;
         }
-        try {
-          const val = await getStorageItem(STORAGE_KEY_FIRMS);
-          const parsed = val ? JSON.parse(val) : [];
-          otherFirms = Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-          otherFirms = [];
+        if (useSupabase) {
+          try {
+            const { data, error } = await supabase.from('firms').select('*');
+            if (error) throw error;
+            otherFirms = (data || []).map(x => x.name);
+          } catch (e) {
+            console.error("loadFirms error:", e);
+            otherFirms = [];
+          }
+        } else {
+          try {
+            const val = await getStorageItem(STORAGE_KEY_FIRMS);
+            const parsed = val ? JSON.parse(val) : [];
+            otherFirms = Array.isArray(parsed) ? parsed : [];
+          } catch (e) {
+            otherFirms = [];
+          }
         }
         renderCompanyOptions();
       }
 
       async function saveFirms() {
+        if (useSupabase) return true;
         if (!storageAvailable()) return true;
         try {
           const res = await setStorageItem(STORAGE_KEY_FIRMS, JSON.stringify(otherFirms));
@@ -1275,6 +1536,18 @@
           $('inpNewFirma').value = '';
           return;
         }
+
+        if (useSupabase) {
+          try {
+            const { error } = await supabase.from('firms').insert({ name: val });
+            if (error) throw error;
+          } catch (e) {
+            console.error(e);
+            showToast('Firma eklenemedi: ' + e.message, true);
+            return;
+          }
+        }
+
         otherFirms.push(val);
         renderCompanyOptions(val);
         $('inpNewFirma').value = '';
@@ -1290,17 +1563,29 @@
           renderTypeOptions();
           return;
         }
-        try {
-          const val = await getStorageItem(STORAGE_KEY_TYPES);
-          const parsed = val ? JSON.parse(val) : [];
-          otherTypes = Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-          otherTypes = [];
+        if (useSupabase) {
+          try {
+            const { data, error } = await supabase.from('types').select('*');
+            if (error) throw error;
+            otherTypes = (data || []).map(x => x.name);
+          } catch (e) {
+            console.error("loadTypes error:", e);
+            otherTypes = [];
+          }
+        } else {
+          try {
+            const val = await getStorageItem(STORAGE_KEY_TYPES);
+            const parsed = val ? JSON.parse(val) : [];
+            otherTypes = Array.isArray(parsed) ? parsed : [];
+          } catch (e) {
+            otherTypes = [];
+          }
         }
         renderTypeOptions();
       }
 
       async function saveTypes() {
+        if (useSupabase) return true;
         if (!storageAvailable()) return true;
         try {
           const res = await setStorageItem(STORAGE_KEY_TYPES, JSON.stringify(otherTypes));
@@ -1345,6 +1630,18 @@
           $('inpNewType').value = '';
           return;
         }
+
+        if (useSupabase) {
+          try {
+            const { error } = await supabase.from('types').insert({ name: val });
+            if (error) throw error;
+          } catch (e) {
+            console.error(e);
+            showToast('Çizim tipi eklenemedi: ' + e.message, true);
+            return;
+          }
+        }
+
         otherTypes.push(val);
         renderTypeOptions(val);
         $('inpNewType').value = '';
@@ -1361,18 +1658,30 @@
           renderPersonnelPanel();
           return;
         }
-        try {
-          const val = await getStorageItem(STORAGE_KEY_PERSONNEL);
-          const parsed = val ? JSON.parse(val) : [];
-          personnelList = Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-          personnelList = [];
+        if (useSupabase) {
+          try {
+            const { data, error } = await supabase.from('personnel').select('*');
+            if (error) throw error;
+            personnelList = (data || []).map(x => x.name);
+          } catch (e) {
+            console.error("loadPersonnel error:", e);
+            personnelList = [];
+          }
+        } else {
+          try {
+            const val = await getStorageItem(STORAGE_KEY_PERSONNEL);
+            const parsed = val ? JSON.parse(val) : [];
+            personnelList = Array.isArray(parsed) ? parsed : [];
+          } catch (e) {
+            personnelList = [];
+          }
         }
         renderEmployeeOptions();
         renderPersonnelPanel();
       }
 
       async function savePersonnel() {
+        if (useSupabase) return true;
         if (!storageAvailable()) return true;
         try {
           const res = await setStorageItem(STORAGE_KEY_PERSONNEL, JSON.stringify(personnelList));
@@ -1441,6 +1750,18 @@
           showToast('Bu personel zaten listede mevcut.', true);
           return;
         }
+
+        if (useSupabase) {
+          try {
+            const { error } = await supabase.from('personnel').insert({ name: val });
+            if (error) throw error;
+          } catch (e) {
+            console.error(e);
+            showToast('Personel eklenemedi: ' + e.message, true);
+            return;
+          }
+        }
+
         personnelList.push(val);
         $('inpNewPersonnel').value = '';
         renderPersonnelPanel();
@@ -1455,6 +1776,18 @@
           ? `"${name}" adlı personelin şu anda bekleyen bir işi var (CRM: ${job.crmCode}). Yine de listeden silmek istiyor musunuz?`
           : `"${name}" adlı personeli listeden silmek istediğinize emin misiniz?`;
         if (!confirm(msg)) return;
+
+        if (useSupabase) {
+          try {
+            const { error } = await supabase.from('personnel').delete().eq('name', name);
+            if (error) throw error;
+          } catch (e) {
+            console.error(e);
+            showToast('Personel silinemedi: ' + e.message, true);
+            return;
+          }
+        }
+
         personnelList = personnelList.filter(p => p !== name);
         renderPersonnelPanel();
         renderEmployeeOptions();
@@ -1523,6 +1856,7 @@
 
         const bekleyen = filtered.filter(p => (p.status || 'Bekliyor') === 'Bekliyor');
         const yapilan = filtered.filter(p => (p.status || 'Bekliyor') === 'Yapıldı');
+        const gridClass = currentView === 'list' ? 'grid list-view' : 'grid';
 
         gridArea.innerHTML = `
       <div class="board-section">
@@ -1531,7 +1865,7 @@
           <span class="board-section-count">${bekleyen.length}</span>
         </div>
         ${bekleyen.length
-            ? `<div class="grid">${bekleyen.map(cardHtml).join('')}</div>`
+            ? `<div class="${gridClass}">${bekleyen.map(cardHtml).join('')}</div>`
             : `<div class="empty-state small">Devam eden iş yok.</div>`}
       </div>
       <div class="board-section">
@@ -1540,7 +1874,7 @@
           <span class="board-section-count">${yapilan.length}</span>
         </div>
         ${yapilan.length
-            ? `<div class="grid">${yapilan.map(cardHtml).join('')}</div>`
+            ? `<div class="${gridClass}">${yapilan.map(cardHtml).join('')}</div>`
             : `<div class="empty-state small">Henüz tamamlanan iş yok.</div>`}
       </div>
     `;
@@ -1594,7 +1928,8 @@
         </div>
         <div class="card-body">
           <p class="card-company">${esc(p.company)}</p>
-          <div class="card-row"><span>Bina Kodu</span><b>${esc(p.buildingCode || p.areaM2)}</b></div>
+          <div class="card-row"><span>Bina Kodu</span><b>${esc(p.buildingCode || '—')}</b></div>
+          <div class="card-row"><span>Bina Alanı</span><b>${p.areaM2 ? (p.areaM2.toString().includes('m²') ? esc(p.areaM2) : esc(p.areaM2) + ' m²') : '—'}</b></div>
           <div class="card-row"><span>Personel</span><b>${esc(p.employee) || '—'}</b></div>
           <div class="card-row"><span>Tarih</span><b>${fmtDate(p.date)}</b></div>
           ${p.notes ? `<div class="card-row"><span>Not</span><b style="font-family:'Inter',sans-serif;font-weight:500;">${esc(p.notes)}</b></div>` : ''}
@@ -1631,6 +1966,7 @@
 
         $('inpCrm').value = p.crmCode || '';
         $('inpBuildingCode').value = p.buildingCode || '';
+        $('inpAreaM2').value = p.areaM2 || '';
 
         // Fill type
         if (!FIXED_TYPES.includes(p.projectType) && !otherTypes.includes(p.projectType)) {
@@ -1680,12 +2016,30 @@
           showToast('Bu projenin durumunu değiştirme yetkiniz yok.', true);
           return;
         }
-        p.status = (p.status || 'Bekliyor') === 'Bekliyor' ? 'Yapıldı' : 'Bekliyor';
-        renderGrid();
-        renderPersonnelPanel();
-        checkEmployeeWarning();
-        const ok = await saveProjects();
-        if (ok) showToast(p.status === 'Bekliyor' ? 'İş bekliyor olarak işaretlendi.' : 'İş yapıldı olarak işaretlendi.');
+        const newStatus = (p.status || 'Bekliyor') === 'Bekliyor' ? 'Yapıldı' : 'Bekliyor';
+
+        let ok = false;
+        if (useSupabase) {
+          try {
+            const { error } = await supabase.from('projects').update({ status: newStatus }).eq('id', id);
+            if (error) throw error;
+            p.status = newStatus;
+            ok = true;
+          } catch (e) {
+            console.error(e);
+            showToast('Hata: Durum güncellenemedi.', true);
+          }
+        } else {
+          p.status = newStatus;
+          ok = await saveProjects();
+        }
+
+        if (ok) {
+          renderGrid();
+          renderPersonnelPanel();
+          checkEmployeeWarning();
+          showToast(p.status === 'Bekliyor' ? 'İş bekliyor olarak işaretlendi.' : 'İş yapıldı olarak işaretlendi.');
+        }
       }
 
       async function deleteProject(id) {
@@ -1696,13 +2050,30 @@
           return;
         }
         if (!confirm('Bu talebi listeden silmek istediğinize emin misiniz?')) return;
-        projects = projects.filter(p => p.id !== id);
-        renderGrid();
-        updateNextCodeHint();
-        renderPersonnelPanel();
-        checkEmployeeWarning();
-        const ok = await saveProjects();
-        if (ok) showToast('Kayıt silindi.');
+
+        let ok = false;
+        if (useSupabase) {
+          try {
+            const { error } = await supabase.from('projects').delete().eq('id', id);
+            if (error) throw error;
+            projects = projects.filter(pr => pr.id !== id);
+            ok = true;
+          } catch (e) {
+            console.error(e);
+            showToast('Hata: Kayıt silinemedi.', true);
+          }
+        } else {
+          projects = projects.filter(pr => pr.id !== id);
+          ok = await saveProjects();
+        }
+
+        if (ok) {
+          renderGrid();
+          updateNextCodeHint();
+          renderPersonnelPanel();
+          checkEmployeeWarning();
+          showToast('Kayıt silindi.');
+        }
       }
 
       // ---- form validation & submit ----
@@ -1716,12 +2087,14 @@
         const companyInvalid = !company || company === '__add__';
         const crm = $('inpCrm').value.trim();
         const buildingCode = $('inpBuildingCode').value.trim();
+        const areaM2 = $('inpAreaM2').value.trim();
         const type = $('selType').value.trim();
         const typeInvalid = !type || type === '__add__';
 
         setInvalid('cell-company', companyInvalid); if (companyInvalid) ok = false;
         setInvalid('cell-crm', !/^\d{2}-\d{5}$/.test(crm)); if (!/^\d{2}-\d{5}$/.test(crm)) ok = false;
         setInvalid('cell-area', !buildingCode); if (!buildingCode) ok = false;
+        setInvalid('cell-m2', !areaM2); if (!areaM2) ok = false;
         setInvalid('cell-type', typeInvalid); if (typeInvalid) ok = false;
 
         return ok;
@@ -1746,41 +2119,121 @@
         $('btnSubmit').disabled = true;
 
         let ok = false;
-        if (editingProjectId) {
-          const p = projects.find(pr => pr.id === editingProjectId);
-          if (p) {
-            p.company = $('selCompany').value.trim();
-            p.crmCode = crm;
-            p.buildingCode = $('inpBuildingCode').value.trim();
-            p.projectType = $('selType').value.trim();
-            p.employee = $('selEmployee').value.trim();
-            p.date = $('inpDate').value || todayISO();
-            p.notes = $('inpNotes').value.trim();
-            p.fileName = attachedFile ? attachedFile.name : null;
-            p.fileSize = attachedFile ? attachedFile.size : null;
-            p.fileData = attachedFile ? attachedFile.data : null;
-            ok = await saveProjects();
+        try {
+          let fileUrl = null;
+          if (attachedFile) {
+            if (attachedFile.fileRaw) {
+              fileUrl = await uploadProjectFile(attachedFile);
+            } else {
+              fileUrl = attachedFile.data;
+            }
           }
-        } else {
-          const entry = {
-            id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-            company: $('selCompany').value.trim(),
-            crmCode: crm,
-            buildingCode: $('inpBuildingCode').value.trim(),
-            projectType: $('selType').value.trim(),
-            employee: $('selEmployee').value.trim(),
-            status: 'Bekliyor',
-            date: $('inpDate').value || todayISO(),
-            notes: $('inpNotes').value.trim(),
-            fileName: attachedFile ? attachedFile.name : null,
-            fileSize: attachedFile ? attachedFile.size : null,
-            fileData: attachedFile ? attachedFile.data : null
-          };
-          projects.push(entry);
-          ok = await saveProjects();
-          if (!ok) {
-            projects = projects.filter(p => p.id !== entry.id);
+
+          if (editingProjectId) {
+            const p = projects.find(pr => pr.id === editingProjectId);
+            if (p) {
+              const company = $('selCompany').value.trim();
+              const buildingCode = $('inpBuildingCode').value.trim();
+              const areaM2 = $('inpAreaM2').value.trim();
+              const projectType = $('selType').value.trim();
+              const employee = $('selEmployee').value.trim();
+              const date = $('inpDate').value || todayISO();
+              const notes = $('inpNotes').value.trim();
+              const fileName = attachedFile ? attachedFile.name : null;
+              const fileSize = attachedFile ? attachedFile.size : null;
+              const fileData = fileUrl;
+
+              if (useSupabase) {
+                const { error } = await supabase.from('projects').update({
+                  company,
+                  crm_code: crm,
+                  building_code: buildingCode,
+                  area_m2: areaM2,
+                  project_type: projectType,
+                  employee,
+                  date,
+                  notes,
+                  file_name: fileName,
+                  file_size: fileSize,
+                  file_url: fileUrl
+                }).eq('id', editingProjectId);
+
+                if (error) throw error;
+              }
+
+              p.company = company;
+              p.crmCode = crm;
+              p.buildingCode = buildingCode;
+              p.areaM2 = areaM2;
+              p.projectType = projectType;
+              p.employee = employee;
+              p.date = date;
+              p.notes = notes;
+              p.fileName = fileName;
+              p.fileSize = fileSize;
+              p.fileData = fileData;
+
+              ok = useSupabase ? true : await saveProjects();
+            }
+          } else {
+            const entryId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+            const company = $('selCompany').value.trim();
+            const buildingCode = $('inpBuildingCode').value.trim();
+            const areaM2 = $('inpAreaM2').value.trim();
+            const projectType = $('selType').value.trim();
+            const employee = $('selEmployee').value.trim();
+            const date = $('inpDate').value || todayISO();
+            const notes = $('inpNotes').value.trim();
+            const fileName = attachedFile ? attachedFile.name : null;
+            const fileSize = attachedFile ? attachedFile.size : null;
+            const fileData = fileUrl;
+
+            if (useSupabase) {
+              const { error } = await supabase.from('projects').insert({
+                id: entryId,
+                company,
+                crm_code: crm,
+                building_code: buildingCode,
+                area_m2: areaM2,
+                project_type: projectType,
+                employee,
+                status: 'Bekliyor',
+                date,
+                notes,
+                file_name: fileName,
+                file_size: fileSize,
+                file_url: fileUrl
+              });
+
+              if (error) throw error;
+            }
+
+            const entry = {
+              id: entryId,
+              company,
+              crmCode: crm,
+              buildingCode,
+              areaM2,
+              projectType,
+              employee,
+              status: 'Bekliyor',
+              date,
+              notes,
+              fileName,
+              fileSize,
+              fileData
+            };
+            projects.push(entry);
+
+            ok = useSupabase ? true : await saveProjects();
+            if (!ok && !useSupabase) {
+              projects = projects.filter(p => p.id !== entry.id);
+            }
           }
+        } catch (err) {
+          console.error("submitForm error:", err);
+          showToast("İşlem başarısız: " + err.message, true);
+          ok = false;
         }
 
         $('btnSubmit').disabled = false;
@@ -1801,7 +2254,7 @@
         $('inpFile').value = '';
         $('fileStatus').textContent = '';
         $('btnRemoveFile').classList.add('hidden');
-        ['inpBuildingCode', 'inpNotes'].forEach(id => $(id).value = '');
+        ['inpBuildingCode', 'inpAreaM2', 'inpNotes'].forEach(id => $(id).value = '');
         $('selCompany').selectedIndex = 0;
         $('addFirmaRow').classList.add('hidden');
         $('inpNewFirma').value = '';
@@ -1812,7 +2265,7 @@
         $('employeeWarning').classList.add('hidden');
         $('inpDate').value = todayISO();
         $('inpCrm').value = suggestNextCrm();
-        ['cell-company', 'cell-crm', 'cell-area', 'cell-type'].forEach(id => $(id).classList.remove('invalid'));
+        ['cell-company', 'cell-crm', 'cell-area', 'cell-m2', 'cell-type'].forEach(id => $(id).classList.remove('invalid'));
         $('cell-crm').querySelector('.field-err').textContent = 'Format: YY-00000';
 
         $('tbTopTitle').textContent = 'ÇİZİM TALEP KİMLİK BLOĞU';
@@ -1854,6 +2307,25 @@
       $('btnAdminAddUser').addEventListener('click', addAdminUser);
       $('inpAdminNewPass').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); addAdminUser(); }
+      });
+
+      function updateViewToggleBtn() {
+        if (currentView === 'list') {
+          $('toggleViewIcon').textContent = '🎴';
+          $('toggleViewText').textContent = 'Kutu Görünümü';
+        } else {
+          $('toggleViewIcon').textContent = '📋';
+          $('toggleViewText').textContent = 'Yatay Liste';
+        }
+      }
+
+      $('btnToggleView').addEventListener('click', () => {
+        currentView = currentView === 'grid' ? 'list' : 'grid';
+        try {
+          localStorage.setItem('mimari-view-preference', currentView);
+        } catch (e) { }
+        updateViewToggleBtn();
+        renderGrid();
       });
 
       searchInput.addEventListener('input', renderGrid);
@@ -1902,9 +2374,16 @@
           return;
         }
 
-        const maxSize = 2.5 * 1024 * 1024;
-        if (file.size > maxSize) {
-          showToast('Dosya boyutu 2.5MB\'tan küçük olmalıdır. Büyük dosyalar yerel tarayıcı hafızasına kaydedilemez.', true);
+        const maxLocalStorageSize = 2.5 * 1024 * 1024;
+        const maxSupabaseSize = 50 * 1024 * 1024;
+        const currentLimit = useSupabase ? maxSupabaseSize : maxLocalStorageSize;
+
+        if (file.size > currentLimit) {
+          if (useSupabase) {
+            showToast('Dosya boyutu 50MB\'tan küçük olmalıdır.', true);
+          } else {
+            showToast('Dosya boyutu 2.5MB\'tan küçük olmalıdır. Büyük dosyalar yerel tarayıcı hafızasına kaydedilemez.', true);
+          }
           $('inpFile').value = '';
           attachedFile = null;
           $('fileStatus').textContent = '';
@@ -1912,24 +2391,35 @@
           return;
         }
 
-        const reader = new FileReader();
-        reader.onload = function (evt) {
+        if (useSupabase) {
           attachedFile = {
             name: file.name,
             size: file.size,
-            data: evt.target.result
+            data: null,
+            fileRaw: file
           };
           $('fileStatus').textContent = `Hazır: ${file.name} (${formatBytes(file.size)})`;
           $('btnRemoveFile').classList.remove('hidden');
-        };
-        reader.onerror = function () {
-          showToast('Dosya okunurken hata oluştu.', true);
-          $('inpFile').value = '';
-          attachedFile = null;
-          $('fileStatus').textContent = '';
-          $('btnRemoveFile').classList.add('hidden');
-        };
-        reader.readAsDataURL(file);
+        } else {
+          const reader = new FileReader();
+          reader.onload = function (evt) {
+            attachedFile = {
+              name: file.name,
+              size: file.size,
+              data: evt.target.result
+            };
+            $('fileStatus').textContent = `Hazır: ${file.name} (${formatBytes(file.size)})`;
+            $('btnRemoveFile').classList.remove('hidden');
+          };
+          reader.onerror = function () {
+            showToast('Dosya okunurken hata oluştu.', true);
+            $('inpFile').value = '';
+            attachedFile = null;
+            $('fileStatus').textContent = '';
+            $('btnRemoveFile').classList.add('hidden');
+          };
+          reader.readAsDataURL(file);
+        }
       });
 
       $('btnRemoveFile').addEventListener('click', () => {
@@ -1957,10 +2447,16 @@
         hasLocalStorage = typeof window !== 'undefined' && !!window.localStorage;
       } catch (e) { }
 
-      if (hasCloudStorage) {
+      if (useSupabase) {
+        $('storageWarning').textContent = '🟢 Supabase veritabanı aktif ve bağlandı. Verileriniz bulutta güvenle saklanıyor ve tüm kullanıcılarla anlık eşitleniyor.';
+        $('storageWarning').style.background = '#e8f5e9';
+        $('storageWarning').style.border = '1.5px solid #2e7d32';
+        $('storageWarning').style.color = '#1b5e20';
+        $('storageWarning').classList.remove('hidden');
+      } else if (hasCloudStorage) {
         $('storageWarning').classList.add('hidden');
       } else if (hasLocalStorage) {
-        $('storageWarning').textContent = 'ℹ Bilgiler bu tarayıcıya (Local Storage) kaydediliyor. Sayfayı yenilediğinizde veya kapatıp açtığınızda kaybolmaz. Ancak başka kullanıcılar veya farklı tarayıcılar bu kayıtları göremez.';
+        $('storageWarning').textContent = 'ℹ Bilgiler bu tarayıcıya (Local Storage) kaydediliyor. Sayfayı yenilediğinizde veya kapatıp açtığınızda kaybolmaz. Ancak başka kullanıcılar veya farklı tarayıcılar bu kayıtları göremez. Supabase veritabanına bağlanmak için index.html dosyası içindeki SUPABASE_URL ve SUPABASE_ANON_KEY sabitlerini doldurabilirsiniz.';
         $('storageWarning').style.background = '#e1f5fe';
         $('storageWarning').style.border = '1.5px solid #0288d1';
         $('storageWarning').style.color = '#01579b';
@@ -1975,6 +2471,13 @@
         loadFirms();
         loadTypes();
         loadPersonnel();
+        try {
+          const pref = localStorage.getItem('mimari-view-preference');
+          if (pref === 'list') {
+            currentView = 'list';
+          }
+        } catch (e) { }
+        updateViewToggleBtn();
         loadProjects();
       }
       init();
