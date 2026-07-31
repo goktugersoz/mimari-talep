@@ -1046,6 +1046,11 @@
             <input type="text" id="inpAdminNewPass" placeholder="örn. 12345">
             <div class="field-err">Şifre boş olamaz.</div>
           </div>
+          <div class="cell full" id="cell-admin-personnel-name">
+            <label>Eşleşecek Personel Adı Soyadı</label>
+            <input type="text" id="inpAdminNewPersonnelName" placeholder="örn. Ahmet Yılmaz">
+            <div class="field-err">Personel adı boş olamaz.</div>
+          </div>
           <div class="cell full">
             <label>Yetki / Rol</label>
             <div class="select-wrap">
@@ -1159,7 +1164,7 @@
 
       async function loadUsers() {
         if (!storageAvailable()) {
-          users = [{ username: 'admin', password: '123', role: 'admin' }];
+          users = [{ username: 'admin', password: '123', role: 'admin', personnelName: 'Admin' }];
           renderUsersPanel();
           return;
         }
@@ -1167,22 +1172,30 @@
           try {
             const { data, error } = await supabase.from('users').select('*');
             if (error) throw error;
-            users = data || [];
+            users = (data || []).map(u => ({
+              username: u.username,
+              password: u.password,
+              role: u.role,
+              personnelName: u.personnel_name || u.username
+            }));
             if (!users.length) {
-              users = [{ username: 'admin', password: '123', role: 'admin' }];
-              await supabase.from('users').insert(users[0]);
+              users = [{ username: 'admin', password: '123', role: 'admin', personnelName: 'Admin' }];
+              await supabase.from('users').insert({ username: 'admin', password: '123', role: 'admin', personnel_name: 'Admin' });
             }
           } catch (e) {
             console.error("loadUsers error:", e);
-            users = [{ username: 'admin', password: '123', role: 'admin' }];
+            users = [{ username: 'admin', password: '123', role: 'admin', personnelName: 'Admin' }];
           }
         } else {
           try {
             const val = await getStorageItem(STORAGE_KEY_USERS);
             const parsed = val ? JSON.parse(val) : [];
-            users = Array.isArray(parsed) && parsed.length ? parsed : [{ username: 'admin', password: '123', role: 'admin' }];
+            users = Array.isArray(parsed) && parsed.length ? parsed.map(u => ({
+              ...u,
+              personnelName: u.personnelName || u.username
+            })) : [{ username: 'admin', password: '123', role: 'admin', personnelName: 'Admin' }];
           } catch (e) {
-            users = [{ username: 'admin', password: '123', role: 'admin' }];
+            users = [{ username: 'admin', password: '123', role: 'admin', personnelName: 'Admin' }];
           }
         }
         renderUsersPanel();
@@ -1281,7 +1294,7 @@
             : `<span style="font-size:11px;color:var(--ink-soft);">${isSelf ? '(Siz)' : ''}</span>`;
 
           return `<div class="personnel-item">
-        <span class="personnel-name">${esc(u.username)} <span style="font-size:12px; font-weight:normal; color:var(--ink-soft);">(${u.role === 'admin' ? 'Yönetici' : 'Kullanıcı'})</span></span>
+        <span class="personnel-name">${esc(u.username)} <span style="font-size:12px; font-weight:normal; color:var(--ink-soft);">(${u.role === 'admin' ? 'Yönetici' : 'Kullanıcı'})</span> — <span style="font-size:12px; font-weight:bold; color:var(--accent-dark);">Personel: ${esc(u.personnelName || u.username)}</span></span>
         <span style="font-family:'JetBrains Mono',monospace; font-size:12px; margin-right:15px; color:var(--ink-soft);">Şifre: ${esc(u.password)}</span>
         ${delBtn}
       </div>`;
@@ -1295,11 +1308,13 @@
       async function addAdminUser() {
         const uName = $('inpAdminNewUser').value.trim();
         const uPass = $('inpAdminNewPass').value.trim();
+        const pName = $('inpAdminNewPersonnelName').value.trim();
         const uRole = $('selAdminNewRole').value;
 
         let err = false;
         if (!uName) { $('cell-admin-user').classList.add('invalid'); err = true; } else { $('cell-admin-user').classList.remove('invalid'); }
         if (!uPass) { $('cell-admin-pass').classList.add('invalid'); err = true; } else { $('cell-admin-pass').classList.remove('invalid'); }
+        if (!pName) { $('cell-admin-personnel-name').classList.add('invalid'); err = true; } else { $('cell-admin-personnel-name').classList.remove('invalid'); }
         if (err) return;
 
         if (users.some(x => x.username.toLowerCase() === uName.toLowerCase())) {
@@ -1310,7 +1325,12 @@
 
         if (useSupabase) {
           try {
-            const { error } = await supabase.from('users').insert({ username: uName, password: uPass, role: uRole });
+            const { error } = await supabase.from('users').insert({ 
+              username: uName, 
+              password: uPass, 
+              role: uRole,
+              personnel_name: pName
+            });
             if (error) throw error;
           } catch (e) {
             console.error(e);
@@ -1319,16 +1339,28 @@
           }
         }
 
-        users.push({ username: uName, password: uPass, role: uRole });
+        users.push({ username: uName, password: uPass, role: uRole, personnelName: pName });
 
-        if (!personnelList.some(p => p.toLowerCase() === uName.toLowerCase())) {
-          personnelList.push(uName);
+        if (useSupabase) {
+          try {
+            if (!personnelList.some(p => p.toLowerCase() === pName.toLowerCase())) {
+              const { error: pErr } = await supabase.from('personnel').insert({ name: pName });
+              if (pErr) console.error(pErr);
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        if (!personnelList.some(p => p.toLowerCase() === pName.toLowerCase())) {
+          personnelList.push(pName);
           renderEmployeeOptions();
           await savePersonnel();
         }
 
         $('inpAdminNewUser').value = '';
         $('inpAdminNewPass').value = '';
+        $('inpAdminNewPersonnelName').value = '';
         renderUsersPanel();
         await saveUsers();
         showToast('Kullanıcı başarıyla oluşturuldu: ' + uName);
@@ -1926,7 +1958,8 @@
 
         const empName = (p.employee || '').trim().toLowerCase();
         const currName = (currentUser.username || '').trim().toLowerCase();
-        return empName === currName;
+        const currPersName = (currentUser.personnelName || '').trim().toLowerCase();
+        return empName === currName || empName === currPersName;
       }
 
       function cardHtml(p) {
