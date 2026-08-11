@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
       // --- Supabase Config ---
       const SUPABASE_URL = 'https://alavnnyyyxhntmylduup.supabase.co/rest/v1/';
       const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFsYXZubnl5eXhobnRteWxkdXVwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0ODk3NTgsImV4cCI6MjEwMTA2NTc1OH0.prWAVrUS195htU1xBih_r0IXizOSwodIFN9MhJTvf5Y';
@@ -1500,6 +1500,9 @@
         if (name === 'admin') {
           renderUsersPanel();
           $('inpCrmStartCode').value = crmStartCode;
+        }
+        if (name === 'stats') {
+          renderStats();
         }
       }
 
