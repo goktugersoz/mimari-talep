@@ -1645,7 +1645,89 @@
       $('btnAddPersonnel').addEventListener('click', addPersonnel);
       $('inpNewPersonnel').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); addPersonnel(); }
-      });
+      
+        let monthlyChartInstance = null;
+
+        function renderStats() {
+          const totalProjects = projects.length;
+          const pendingProjects = projects.filter(p => p.status === 'bekliyor').length;
+          const completedProjects = projects.filter(p => p.status === 'yapildi').length;
+          const activePersonnel = personnelList.length;
+
+          // Doldur kartları
+          $('statsCardsContainer').innerHTML = `
+            <div class="stat-card">
+              <h4>Toplam Proje</h4>
+              <div class="val">${totalProjects}</div>
+            </div>
+            <div class="stat-card">
+              <h4>Bekleyen</h4>
+              <div class="val" style="color:var(--secondary);">${pendingProjects}</div>
+            </div>
+            <div class="stat-card">
+              <h4>Tamamlanan</h4>
+              <div class="val" style="color:#2ecc71;">${completedProjects}</div>
+            </div>
+            <div class="stat-card">
+              <h4>Aktif Personel</h4>
+              <div class="val">${activePersonnel}</div>
+            </div>
+          `;
+
+          // Aylık Verileri Hesapla
+          const monthlyData = {};
+          projects.forEach(p => {
+            if (!p.date) return;
+            const d = new Date(p.date);
+            if (isNaN(d.getTime())) return;
+            const month = d.toLocaleString('tr-TR', { month: 'long', year: 'numeric' });
+            monthlyData[month] = (monthlyData[month] || 0) + 1;
+          });
+
+          // Sort months conceptually, but for simplicity just Object.entries
+          const sortedMonths = Object.keys(monthlyData).sort((a,b) => {
+            // Rough sorting string comparison (won't be perfect chronologically without proper parsing, but ok for now)
+            return a.localeCompare(b);
+          });
+          const labels = sortedMonths;
+          const dataValues = sortedMonths.map(m => monthlyData[m]);
+
+          const ctx = document.getElementById('monthlyChart').getContext('2d');
+          
+          if (monthlyChartInstance) {
+            monthlyChartInstance.destroy();
+          }
+
+          monthlyChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: labels,
+              datasets: [{
+                label: 'Aylık Eklenen Projeler',
+                data: dataValues,
+                backgroundColor: 'rgba(207, 46, 46, 0.8)',
+                borderColor: 'rgba(207, 46, 46, 1)',
+                borderWidth: 1,
+                borderRadius: 4
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: { stepSize: 1 }
+                }
+              },
+              plugins: {
+                legend: { display: false }
+              }
+            }
+          });
+        }
+        
+});
 
       const now = new Date();
       $('revTag').textContent = now.toLocaleDateString('tr-TR') + ' · REV-01';

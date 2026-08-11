@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 
 <head>
@@ -10,6 +10,7 @@
     rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -61,6 +62,7 @@
       <div class="tab active" data-tab="board">PROJE PANOSU</div>
       <div class="tab" data-tab="form">YENİ TALEP GİR</div>
       <div class="tab" data-tab="personnel">PERSONEL</div>
+      <div class="tab" data-tab="stats" id="tab-stats">İSTATİSTİKLER</div>
       <div class="tab hidden" data-tab="admin" id="tab-admin">ADMİN PANELİ</div>
     </div>
 
@@ -202,6 +204,18 @@
         <button type="button" id="btnAddPersonnel">Personel Ekle</button>
       </div>
       <div id="personnelList"></div>
+    </div>
+
+    <!-- STATS -->
+    <div class="panel hidden" id="panel-stats">
+      <h3 style="font-family:'Montserrat',sans-serif; margin-top:0;">Genel Durum</h3>
+      <div class="stats-grid" id="statsCardsContainer">
+        <!-- Kartlar JS ile doldurulacak -->
+      </div>
+      <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px;">Aylık Proje Yoğunluğu</h3>
+      <div class="chart-container">
+        <canvas id="monthlyChart"></canvas>
+      </div>
     </div>
 
     <!-- ADMIN -->
