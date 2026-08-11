@@ -308,8 +308,8 @@
 
         function renderStats() {
           const totalProjects = projects.length;
-          const pendingProjects = projects.filter(p => p.status === 'bekliyor').length;
-          const completedProjects = projects.filter(p => p.status === 'yapildi').length;
+          const pendingProjects = projects.filter(p => (p.status || 'Bekliyor') === 'Bekliyor').length;
+          const completedProjects = totalProjects - pendingProjects;
           const activePersonnel = personnelList.length;
 
           // Doldur kartları
