@@ -1574,68 +1574,72 @@
 
       $('selEmployee').addEventListener('change', checkEmployeeWarning);
 
-      $('inpFile').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) {
-          attachedFile = null;
-          $('fileStatus').textContent = '';
-          $('btnRemoveFile').classList.add('hidden');
-          return;
-        }
-
-        const maxLocalStorageSize = 2.5 * 1024 * 1024;
-        const maxSupabaseSize = 50 * 1024 * 1024;
-        const currentLimit = useSupabase ? maxSupabaseSize : maxLocalStorageSize;
-
-        if (file.size > currentLimit) {
-          if (useSupabase) {
-            showToast('Dosya boyutu 50MB\'tan küçük olmalıdır.', true);
-          } else {
-            showToast('Dosya boyutu 2.5MB\'tan küçük olmalıdır. Büyük dosyalar yerel tarayıcı hafızasına kaydedilemez.', true);
+      ['dwg', 'excel', 'axd'].forEach(type => {
+        const uType = type.charAt(0).toUpperCase() + type.slice(1);
+        
+        $('inpFile' + uType).addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (!file) {
+            attachedFiles[type] = null;
+            $('fileStatus' + uType).textContent = '';
+            $('btnRemoveFile' + uType).classList.add('hidden');
+            return;
           }
-          $('inpFile').value = '';
-          attachedFile = null;
-          $('fileStatus').textContent = '';
-          $('btnRemoveFile').classList.add('hidden');
-          return;
-        }
 
-        if (useSupabase) {
-          attachedFile = {
-            name: file.name,
-            size: file.size,
-            data: null,
-            fileRaw: file
-          };
-          $('fileStatus').textContent = `Hazır: ${file.name} (${formatBytes(file.size)})`;
-          $('btnRemoveFile').classList.remove('hidden');
-        } else {
-          const reader = new FileReader();
-          reader.onload = function (evt) {
-            attachedFile = {
+          const maxLocalStorageSize = 2.5 * 1024 * 1024;
+          const maxSupabaseSize = 50 * 1024 * 1024;
+          const currentLimit = useSupabase ? maxSupabaseSize : maxLocalStorageSize;
+
+          if (file.size > currentLimit) {
+            if (useSupabase) {
+              showToast('Dosya boyutu 50MB\'tan küçük olmalıdır.', true);
+            } else {
+              showToast('Dosya boyutu 2.5MB\'tan küçük olmalıdır. Büyük dosyalar yerel tarayıcı hafızasına kaydedilemez.', true);
+            }
+            $('inpFile' + uType).value = '';
+            attachedFiles[type] = null;
+            $('fileStatus' + uType).textContent = '';
+            $('btnRemoveFile' + uType).classList.add('hidden');
+            return;
+          }
+
+          if (useSupabase) {
+            attachedFiles[type] = {
               name: file.name,
               size: file.size,
-              data: evt.target.result
+              data: null,
+              fileRaw: file
             };
-            $('fileStatus').textContent = `Hazır: ${file.name} (${formatBytes(file.size)})`;
-            $('btnRemoveFile').classList.remove('hidden');
-          };
-          reader.onerror = function () {
-            showToast('Dosya okunurken hata oluştu.', true);
-            $('inpFile').value = '';
-            attachedFile = null;
-            $('fileStatus').textContent = '';
-            $('btnRemoveFile').classList.add('hidden');
-          };
-          reader.readAsDataURL(file);
-        }
-      });
+            $('fileStatus' + uType).textContent = `Hazır: ${file.name} (${formatBytes(file.size)})`;
+            $('btnRemoveFile' + uType).classList.remove('hidden');
+          } else {
+            const reader = new FileReader();
+            reader.onload = function (evt) {
+              attachedFiles[type] = {
+                name: file.name,
+                size: file.size,
+                data: evt.target.result
+              };
+              $('fileStatus' + uType).textContent = `Hazır: ${file.name} (${formatBytes(file.size)})`;
+              $('btnRemoveFile' + uType).classList.remove('hidden');
+            };
+            reader.onerror = function () {
+              showToast('Dosya okunurken hata oluştu.', true);
+              $('inpFile' + uType).value = '';
+              attachedFiles[type] = null;
+              $('fileStatus' + uType).textContent = '';
+              $('btnRemoveFile' + uType).classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+          }
+        });
 
-      $('btnRemoveFile').addEventListener('click', () => {
-        $('inpFile').value = '';
-        attachedFile = null;
-        $('fileStatus').textContent = '';
-        $('btnRemoveFile').classList.add('hidden');
+        $('btnRemoveFile' + uType).addEventListener('click', () => {
+          $('inpFile' + uType).value = '';
+          attachedFiles[type] = null;
+          $('fileStatus' + uType).textContent = '';
+          $('btnRemoveFile' + uType).classList.add('hidden');
+        });
       });
 
       $('btnAddPersonnel').addEventListener('click', addPersonnel);
