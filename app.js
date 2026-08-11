@@ -1481,8 +1481,8 @@
         $('panel-board').classList.toggle('hidden', name !== 'board');
         $('panel-form').classList.toggle('hidden', name !== 'form');
         $('panel-personnel').classList.toggle('hidden', name !== 'personnel');
-        panel-admin.classList.toggle('hidden', name !== 'admin');
-          panel-stats.classList.toggle('hidden', name !== 'stats');
+        $('panel-admin').classList.toggle('hidden', name !== 'admin');
+        $('panel-stats').classList.toggle('hidden', name !== 'stats');
         if (name === 'form') {
           updateNextCodeHint();
           if (!$('inpCrm').value) $('inpCrm').value = suggestNextCrm();
