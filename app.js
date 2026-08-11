@@ -609,24 +609,46 @@
             const { data, error } = await supabase.from('projects').select('*');
             if (error) throw error;
             projects = (data || []).filter(p => p.id !== '__settings__').map(p => {
-              const notesParsed = parseNotesField(p.notes);
-              return {
-                id: p.id,
-                company: p.company,
-                crmCode: p.crm_code,
-                buildingCode: p.building_code,
-                areaM2: p.area_m2,
-                projectType: p.project_type,
-                employee: p.employee,
-                status: p.status,
-                date: p.date,
-                notes: notesParsed.notes,
-                customerName: notesParsed.customerName,
-                fileName: p.file_name,
-                fileSize: p.file_size ? parseInt(p.file_size) : null,
-                fileData: p.file_url
-              };
-            });
+                const notesParsed = parseNotesField(p.notes);
+                const obj = {
+                  id: p.id,
+                  company: p.company,
+                  crmCode: p.crm_code,
+                  buildingCode: p.building_code,
+                  areaM2: p.area_m2,
+                  projectType: p.project_type,
+                  employee: p.employee,
+                  status: p.status,
+                  date: p.date,
+                  notes: notesParsed.notes,
+                  customerName: notesParsed.customerName
+                };
+
+                let fName = p.file_name;
+                let fSize = p.file_size ? parseInt(p.file_size) : null;
+                let fUrl = p.file_url;
+                
+                if (fName === '[MULTI]' && fUrl) {
+                  try {
+                    const multi = JSON.parse(fUrl);
+                    obj.fileDwgName = multi.dwg ? multi.dwg.name : null;
+                    obj.fileDwgSize = multi.dwg ? multi.dwg.size : null;
+                    obj.fileDwgData = multi.dwg ? multi.dwg.url : null;
+                    obj.fileExcelName = multi.excel ? multi.excel.name : null;
+                    obj.fileExcelSize = multi.excel ? multi.excel.size : null;
+                    obj.fileExcelData = multi.excel ? multi.excel.url : null;
+                    obj.fileAxdName = multi.axd ? multi.axd.name : null;
+                    obj.fileAxdSize = multi.axd ? multi.axd.size : null;
+                    obj.fileAxdData = multi.axd ? multi.axd.url : null;
+                  } catch(e) {}
+                } else {
+                  obj.fileDwgName = fName;
+                  obj.fileDwgSize = fSize;
+                  obj.fileDwgData = fUrl;
+                }
+                
+                return obj;
+              });
           } catch (e) {
             console.error("Supabase load projects error:", e);
             showToast("Veriler yüklenirken hata oluştu: " + e.message, true);
@@ -1424,15 +1446,13 @@
                   employee,
                   date,
                   notes: notesRaw,
-                  file_dwg_name: fileDwgName,
-                  file_dwg_size: fileDwgSize,
-                  file_dwg_url: fileDwgData,
-                  file_excel_name: fileExcelName,
-                  file_excel_size: fileExcelSize,
-                  file_excel_url: fileExcelData,
-                  file_axd_name: fileAxdName,
-                  file_axd_size: fileAxdSize,
-                  file_axd_url: fileAxdData
+                  file_name: '[MULTI]',
+                  file_size: (fileDwgSize || 0) + (fileExcelSize || 0) + (fileAxdSize || 0),
+                  file_url: JSON.stringify({
+                    dwg: { name: fileDwgName, size: fileDwgSize, url: fileDwgData },
+                    excel: { name: fileExcelName, size: fileExcelSize, url: fileExcelData },
+                    axd: { name: fileAxdName, size: fileAxdSize, url: fileAxdData }
+                  })
                 }).eq('id', editingProjectId);
 
                 if (error) throw error;
@@ -1492,15 +1512,13 @@
                 status: 'Bekliyor',
                 date,
                 notes: notesRaw,
-                file_dwg_name: fileDwgName,
-                file_dwg_size: fileDwgSize,
-                file_dwg_url: fileDwgData,
-                file_excel_name: fileExcelName,
-                file_excel_size: fileExcelSize,
-                file_excel_url: fileExcelData,
-                file_axd_name: fileAxdName,
-                file_axd_size: fileAxdSize,
-                file_axd_url: fileAxdData
+                file_name: '[MULTI]',
+                file_size: (fileDwgSize || 0) + (fileExcelSize || 0) + (fileAxdSize || 0),
+                file_url: JSON.stringify({
+                  dwg: { name: fileDwgName, size: fileDwgSize, url: fileDwgData },
+                  excel: { name: fileExcelName, size: fileExcelSize, url: fileExcelData },
+                  axd: { name: fileAxdName, size: fileAxdSize, url: fileAxdData }
+                })
               });
 
               if (error) throw error;
