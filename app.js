@@ -1424,9 +1424,15 @@
                   employee,
                   date,
                   notes: notesRaw,
-                  file_name: fileName,
-                  file_size: fileSize,
-                  file_url: fileUrl
+                  file_dwg_name: fileDwgName,
+                  file_dwg_size: fileDwgSize,
+                  file_dwg_url: fileDwgData,
+                  file_excel_name: fileExcelName,
+                  file_excel_size: fileExcelSize,
+                  file_excel_url: fileExcelData,
+                  file_axd_name: fileAxdName,
+                  file_axd_size: fileAxdSize,
+                  file_axd_url: fileAxdData
                 }).eq('id', editingProjectId);
 
                 if (error) throw error;
@@ -1441,9 +1447,15 @@
               p.date = date;
               p.notes = notes;
               p.customerName = customerName;
-              p.fileName = fileName;
-              p.fileSize = fileSize;
-              p.fileData = fileData;
+              p.fileDwgName = fileDwgName;
+              p.fileDwgSize = fileDwgSize;
+              p.fileDwgData = fileDwgData;
+              p.fileExcelName = fileExcelName;
+              p.fileExcelSize = fileExcelSize;
+              p.fileExcelData = fileExcelData;
+              p.fileAxdName = fileAxdName;
+              p.fileAxdSize = fileAxdSize;
+              p.fileAxdData = fileAxdData;
 
               ok = useSupabase ? true : await saveProjects();
             }
@@ -1480,9 +1492,15 @@
                 status: 'Bekliyor',
                 date,
                 notes: notesRaw,
-                file_name: fileName,
-                file_size: fileSize,
-                file_url: fileUrl
+                file_dwg_name: fileDwgName,
+                file_dwg_size: fileDwgSize,
+                file_dwg_url: fileDwgData,
+                file_excel_name: fileExcelName,
+                file_excel_size: fileExcelSize,
+                file_excel_url: fileExcelData,
+                file_axd_name: fileAxdName,
+                file_axd_size: fileAxdSize,
+                file_axd_url: fileAxdData
               });
 
               if (error) throw error;
@@ -1500,9 +1518,15 @@
               status: 'Bekliyor',
               date,
               notes,
-              fileName,
-              fileSize,
-              fileData
+              fileDwgName,
+              fileDwgSize,
+              fileDwgData,
+              fileExcelName,
+              fileExcelSize,
+              fileExcelData,
+              fileAxdName,
+              fileAxdSize,
+              fileAxdData
             };
             projects.push(entry);
 
