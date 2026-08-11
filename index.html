@@ -151,15 +151,31 @@
             <input id="inpDate" type="date">
           </div>
 
-          <div class="cell full" id="cell-file">
-            <label>Proje Çizim Dosyası (DWG, DXF, PDF vb. - Maks 2.5MB)</label>
+          <div class="cell full" id="cell-file-dwg">
+            <label>AutoCAD Dosyası (.dwg - Zorunlu, Maks 2.5MB)</label>
             <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-              <input id="inpFile" type="file" accept=".dwg,.dxf,.pdf,.zip,.rar,.png,.jpg,.jpeg" style="font-size:13px;">
-              <button type="button" id="btnRemoveFile" class="btn-cancel-edit hidden"
-                style="padding:5px 12px; font-size:12px; height:auto; font-family:'Space Grotesk',sans-serif;">Dosyayı
-                Kaldır</button>
+              <input id="inpFileDwg" type="file" accept=".dwg" style="font-size:13px;">
+              <button type="button" id="btnRemoveFileDwg" class="btn-cancel-edit hidden" style="padding:5px 12px; font-size:12px; height:auto; font-family:'Montserrat',sans-serif;">Kaldır</button>
             </div>
-            <div id="fileStatus" class="hint" style="margin-top:5px; font-family:'JetBrains Mono',monospace;"></div>
+            <div id="fileStatusDwg" class="hint" style="margin-top:5px; font-family:'Roboto',sans-serif;"></div>
+          </div>
+
+          <div class="cell full" id="cell-file-excel">
+            <label>Excel Dosyası (.xls, .xlsx - Zorunlu, Maks 2.5MB)</label>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <input id="inpFileExcel" type="file" accept=".xls,.xlsx" style="font-size:13px;">
+              <button type="button" id="btnRemoveFileExcel" class="btn-cancel-edit hidden" style="padding:5px 12px; font-size:12px; height:auto; font-family:'Montserrat',sans-serif;">Kaldır</button>
+            </div>
+            <div id="fileStatusExcel" class="hint" style="margin-top:5px; font-family:'Roboto',sans-serif;"></div>
+          </div>
+
+          <div class="cell full" id="cell-file-axd">
+            <label>AXD Dosyası (.axd - Zorunlu, Maks 2.5MB)</label>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <input id="inpFileAxd" type="file" accept=".axd" style="font-size:13px;">
+              <button type="button" id="btnRemoveFileAxd" class="btn-cancel-edit hidden" style="padding:5px 12px; font-size:12px; height:auto; font-family:'Montserrat',sans-serif;">Kaldır</button>
+            </div>
+            <div id="fileStatusAxd" class="hint" style="margin-top:5px; font-family:'Roboto',sans-serif;"></div>
           </div>
 
           <div class="cell full">
@@ -253,3 +269,4 @@
 </body>
 
 </html>
+

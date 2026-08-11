@@ -23,7 +23,7 @@
       let personnelList = [];
       let loaded = false;
       let editingProjectId = null;
-      let attachedFile = null;
+      let attachedFiles = { dwg: null, excel: null, axd: null };
       let currentView = 'grid';
       let crmStartCode = String(new Date().getFullYear()).slice(-2) + '-00001';
 
@@ -1150,21 +1150,29 @@
         $('inpDate').value = p.date || todayISO();
         $('inpNotes').value = p.notes || '';
 
-        // Handle attached file
-        if (p.fileName && p.fileData) {
-          attachedFile = {
-            name: p.fileName,
-            size: p.fileSize,
-            data: p.fileData
-          };
-          $('fileStatus').textContent = `Yüklü: ${p.fileName} (${formatBytes(p.fileSize)})`;
-          $('btnRemoveFile').classList.remove('hidden');
-        } else {
-          attachedFile = null;
-          $('inpFile').value = '';
-          $('fileStatus').textContent = '';
-          $('btnRemoveFile').classList.add('hidden');
-        }
+        // Handle attached files
+        ['dwg', 'excel', 'axd'].forEach(type => {
+          const uType = type.charAt(0).toUpperCase() + type.slice(1);
+          if (p['file' + uType + 'Name'] && p['file' + uType + 'Data']) {
+            attachedFiles[type] = {
+              name: p['file' + uType + 'Name'],
+              size: p['file' + uType + 'Size'],
+              data: p['file' + uType + 'Data']
+            };
+            $('fileStatus' + uType).textContent = `Yüklü: ${p['file' + uType + 'Name']} (${formatBytes(p['file' + uType + 'Size'])})`;
+            $('btnRemoveFile' + uType).classList.remove('hidden');
+          } else if (p.fileName && p.fileData && type === 'dwg') {
+            // Backwards compatibility
+            attachedFiles.dwg = { name: p.fileName, size: p.fileSize, data: p.fileData };
+            $('fileStatusDwg').textContent = `Yüklü: ${p.fileName} (${formatBytes(p.fileSize)})`;
+            $('btnRemoveFileDwg').classList.remove('hidden');
+          } else {
+            attachedFiles[type] = null;
+            $('inpFile' + uType).value = '';
+            $('fileStatus' + uType).textContent = '';
+            $('btnRemoveFile' + uType).classList.add('hidden');
+          }
+        });
 
         // Edit mode UI
         $('tbTopTitle').textContent = 'TALEBİ DÜZENLE';
@@ -1292,12 +1300,14 @@
 
         let ok = false;
         try {
-          let fileUrl = null;
-          if (attachedFile) {
-            if (attachedFile.fileRaw) {
-              fileUrl = await uploadProjectFile(attachedFile);
-            } else {
-              fileUrl = attachedFile.data;
+          let fileUrls = { dwg: null, excel: null, axd: null };
+          for (let type of ['dwg', 'excel', 'axd']) {
+            if (attachedFiles[type]) {
+              if (attachedFiles[type].fileRaw) {
+                fileUrls[type] = await uploadProjectFile(attachedFiles[type]);
+              } else {
+                fileUrls[type] = attachedFiles[type].data;
+              }
             }
           }
 
@@ -1313,9 +1323,15 @@
               const date = $('inpDate').value || todayISO();
               const notes = $('inpNotes').value.trim();
               const notesRaw = serializeNotesField(customerName, notes);
-              const fileName = attachedFile ? attachedFile.name : null;
-              const fileSize = attachedFile ? attachedFile.size : null;
-              const fileData = fileUrl;
+              const fileDwgName = attachedFiles.dwg ? attachedFiles.dwg.name : null;
+              const fileDwgSize = attachedFiles.dwg ? attachedFiles.dwg.size : null;
+              const fileDwgData = fileUrls.dwg;
+              const fileExcelName = attachedFiles.excel ? attachedFiles.excel.name : null;
+              const fileExcelSize = attachedFiles.excel ? attachedFiles.excel.size : null;
+              const fileExcelData = fileUrls.excel;
+              const fileAxdName = attachedFiles.axd ? attachedFiles.axd.name : null;
+              const fileAxdSize = attachedFiles.axd ? attachedFiles.axd.size : null;
+              const fileAxdData = fileUrls.axd;
 
               if (useSupabase) {
                 const { error } = await supabase.from('projects').update({
@@ -1361,9 +1377,15 @@
             const date = $('inpDate').value || todayISO();
             const notes = $('inpNotes').value.trim();
             const notesRaw = serializeNotesField(customerName, notes);
-            const fileName = attachedFile ? attachedFile.name : null;
-            const fileSize = attachedFile ? attachedFile.size : null;
-            const fileData = fileUrl;
+              const fileDwgName = attachedFiles.dwg ? attachedFiles.dwg.name : null;
+              const fileDwgSize = attachedFiles.dwg ? attachedFiles.dwg.size : null;
+              const fileDwgData = fileUrls.dwg;
+              const fileExcelName = attachedFiles.excel ? attachedFiles.excel.name : null;
+              const fileExcelSize = attachedFiles.excel ? attachedFiles.excel.size : null;
+              const fileExcelData = fileUrls.excel;
+              const fileAxdName = attachedFiles.axd ? attachedFiles.axd.name : null;
+              const fileAxdSize = attachedFiles.axd ? attachedFiles.axd.size : null;
+              const fileAxdData = fileUrls.axd;
 
             if (useSupabase) {
               const { error } = await supabase.from('projects').insert({
@@ -1428,10 +1450,12 @@
 
       function resetForm() {
         editingProjectId = null;
-        attachedFile = null;
-        $('inpFile').value = '';
-        $('fileStatus').textContent = '';
-        $('btnRemoveFile').classList.add('hidden');
+        attachedFiles = { dwg: null, excel: null, axd: null };
+        ['Dwg', 'Excel', 'Axd'].forEach(type => {
+          $('inpFile' + type).value = '';
+          $('fileStatus' + type).textContent = '';
+          $('btnRemoveFile' + type).classList.add('hidden');
+        });
         ['inpBuildingCode', 'inpAreaM2', 'inpNotes', 'inpCustomerName'].forEach(id => $(id).value = '');
         $('selCompany').selectedIndex = 0;
         $('addFirmaRow').classList.add('hidden');
