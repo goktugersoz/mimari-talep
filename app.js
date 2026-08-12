@@ -1737,9 +1737,14 @@
             createdAt: d.created_at,
             status: d.status || 'mevcut'
           }));
+          $('draftsTableWarning').classList.add('hidden');
         } catch (e) {
           console.error("Supabase loadDrafts error:", e);
-          showToast("Taslaklar veritabanından yüklenemedi: " + e.message, true);
+          if (e.message && e.message.includes('Could not find the table')) {
+            $('draftsTableWarning').classList.remove('hidden');
+          } else {
+            showToast("Taslaklar veritabanından yüklenemedi: " + e.message, true);
+          }
           drafts = [];
         }
         renderDrafts();

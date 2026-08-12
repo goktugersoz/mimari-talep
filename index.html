@@ -221,6 +221,22 @@
 
     <!-- DRAFTS -->
     <div class="panel hidden" id="panel-drafts">
+      <div id="draftsTableWarning" class="hidden" style="background:#fff3cd; border:1px solid #ffeeba; color:#856404; padding:15px; border-radius:6px; margin-bottom:20px; font-family:'Roboto',sans-serif;">
+        <h4 style="margin:0 0 8px 0; font-family:'Montserrat',sans-serif;">⚠️ Supabase Tablosu Eksik</h4>
+        <p style="margin:0 0 10px 0; font-size:13px;">Taslak projelerin çalışabilmesi için Supabase veritabanınızda <strong>draft_projects</strong> tablosu oluşturulmalıdır. Lütfen Supabase SQL Editor panelinizde aşağıdaki sorguyu çalıştırın:</p>
+        <pre style="background:#f8f9fa; padding:10px; border-radius:4px; font-size:12px; overflow-x:auto; margin:0; font-family:'JetBrains Mono',monospace; border:1px solid #e9ecef;">create table draft_projects (
+  id text primary key,
+  created_at timestamptz default now(),
+  file_name text,
+  file_url text,
+  file_size numeric,
+  crm_requested boolean default false,
+  takim_requested boolean default false,
+  sayim_requested boolean default false,
+  uploaded_by text,
+  status text default 'mevcut'
+);</pre>
+      </div>
       <p class="panel-lead">Çizilen taslak DWG dosyalarını buradan yükleyebilir, yanlarındaki CRM, TAKIM ve SAYIM kutucuklarını işaretleyerek talepleri yönetebilirsiniz.</p>
       <div class="titleblock" style="max-width: 560px; margin-bottom: 25px;">
         <div class="tb-top"><span>YENİ TASLAK DWG YÜKLE</span></div>
