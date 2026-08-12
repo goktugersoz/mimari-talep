@@ -1641,7 +1641,7 @@
         if (ok) {
           showToast(editingProjectId ? 'Değişiklikler kaydedildi.' : 'Talep listeye eklendi: ' + crm);
           if (activeDraftIdForNewProject) {
-            updateDraftStatus(activeDraftIdForNewProject, 'status', 'tamamlanan');
+            // Do not force completed status; let the dynamic rules in renderDrafts handle it.
             activeDraftIdForNewProject = null;
           }
           resetForm();
