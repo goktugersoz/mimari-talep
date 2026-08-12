@@ -99,6 +99,19 @@
         });
       }
 
+      function toTitleCase(str) {
+        return str.split(' ').map(word => {
+          if (!word) return '';
+          let first = word.charAt(0);
+          if (first === 'i' || first === 'İ') first = 'İ';
+          else if (first === 'ı' || first === 'I') first = 'I';
+          else first = first.toUpperCase();
+          
+          let rest = word.slice(1).replace(/I/g, 'ı').replace(/İ/g, 'i').toLowerCase();
+          return first + rest;
+        }).join(' ');
+      }
+
       window.downloadProjectFileCustom = async function(e, url, originalName, id) {
         e.preventDefault();
         e.stopPropagation();
@@ -106,7 +119,7 @@
         if (!p) return;
         
         // Build the beautiful filename:
-        // FİRMA ADI - CRM KODU - MÜŞTERİ İSMİ - BİNA KODU - BİNA ALANI - KONUT TİPİ.uzanti
+        // FİRMA ADI - CRM KODU - MÜŞTERİ İSMİ - BİNA KODU - BİNA ALANI - KONUT TİPİ
         const parts = [];
         if (p.company) parts.push(p.company.trim());
         if (p.crmCode) parts.push(p.crmCode.trim());
@@ -122,7 +135,17 @@
         if (!customName) {
           customName = originalName || 'cizim';
         } else {
-          const ext = originalName ? originalName.split('.').pop() : 'dwg';
+          customName = toTitleCase(customName);
+          
+          const ext = originalName ? originalName.split('.').pop().toLowerCase() : 'dwg';
+          if (ext === 'dwg') {
+            customName += ' Konut Planı';
+          } else if (ext === 'xls' || ext === 'xlsx') {
+            customName += ' Sayım Listesi';
+          } else if (ext === 'axd') {
+            customName += ' Makas Planı';
+          }
+          
           customName = customName + '.' + ext;
         }
         
