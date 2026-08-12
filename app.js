@@ -334,9 +334,9 @@
   function showApp() {
     $('loginContainer').style.display = 'none';
     $('appContainer').classList.remove('hidden');
-    $('lblCurrentUser').textContent = `${currentUser.username} (${currentUser.role === 'admin' ? 'Yönetici' : 'Kullanıcı'})`;
+    $('lblCurrentUser').textContent = `${currentUser.username} (${(currentUser.role === 'admin' || currentUser.role === 'YÖNETİM') ? 'Yönetici' : currentUser.role})`;
 
-    if (currentUser.role === 'admin') {
+    if (currentUser.role === 'admin' || currentUser.role === 'YÖNETİM') {
       $('tab-admin').classList.remove('hidden');
     } else {
       $('tab-admin').classList.add('hidden');
@@ -460,7 +460,7 @@
       return;
     }
     list.innerHTML = users.map(u => {
-      const canDelete = users.filter(x => x.role === 'admin').length > 1 || u.role !== 'admin';
+      const canDelete = users.filter(x => x.role === 'admin' || x.role === 'YÖNETİM').length > 1 || (u.role !== 'admin' && u.role !== 'YÖNETİM');
       const isSelf = currentUser && currentUser.username === u.username;
 
       const delBtn = (canDelete && !isSelf)
@@ -468,7 +468,7 @@
         : `<span style="font-size:11px;color:var(--ink-soft);">${isSelf ? '(Siz)' : ''}</span>`;
 
       return `<div class="personnel-item">
-        <span class="personnel-name">${esc(u.username)} <span style="font-size:12px; font-weight:normal; color:var(--ink-soft);">(${u.role === 'admin' ? 'Yönetici' : 'Kullanıcı'})</span> — <span style="font-size:12px; font-weight:bold; color:var(--accent-dark);">Personel: ${esc(u.personnelName || u.username)}</span></span>
+        <span class="personnel-name">${esc(u.username)} <span style="font-size:12px; font-weight:normal; color:var(--ink-soft);">(${(u.role === 'admin' || u.role === 'YÖNETİM') ? 'Yönetici' : u.role})</span> — <span style="font-size:12px; font-weight:bold; color:var(--accent-dark);">Personel: ${esc(u.personnelName || u.username)}</span></span>
         <span style="font-family:'JetBrains Mono',monospace; font-size:12px; margin-right:15px; color:var(--ink-soft);">Şifre: ${esc(u.password)}</span>
         ${delBtn}
       </div>`;
@@ -1008,7 +1008,7 @@
       list.innerHTML = `<div class="empty-state"><div class="big">Henüz personel eklenmemiş</div>Yukarıdaki alandan ilk personeli ekleyerek başlayın.</div>`;
       return;
     }
-    const isUserAdmin = currentUser && currentUser.role === 'admin';
+    const isUserAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'YÖNETİM');
     const sorted = [...personnelList].sort((a, b) => a.localeCompare(b, 'tr'));
     list.innerHTML = sorted.map(name => {
       const job = activeJobOf(name);
@@ -1028,7 +1028,7 @@
   }
 
   async function addPersonnel() {
-    if (!currentUser || currentUser.role !== 'admin') {
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'YÖNETİM')) {
       showToast('Sadece yöneticiler personel ekleyebilir.', true);
       return;
     }
@@ -1062,7 +1062,7 @@
   }
 
   async function removePersonnel(name) {
-    if (!currentUser || currentUser.role !== 'admin') {
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'YÖNETİM')) {
       showToast('Sadece yöneticiler personel silebilir.', true);
       return;
     }
@@ -1206,7 +1206,7 @@
 
   function canManageProject(p) {
     if (!currentUser) return false;
-    if (currentUser.role === 'admin') return true;
+    if (currentUser.role === 'admin' || currentUser.role === 'YÖNETİM') return true;
 
     const empName = (p.employee || '').trim().toLowerCase();
     const currName = (currentUser.username || '').trim().toLowerCase();
@@ -1731,7 +1731,7 @@
       checkEmployeeWarning();
     }
     if (name === 'personnel') {
-      const isUserAdmin = currentUser && currentUser.role === 'admin';
+      const isUserAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'YÖNETİM');
       const addRow = document.querySelector('.personnel-add-row');
       if (addRow) {
         addRow.style.display = isUserAdmin ? 'flex' : 'none';
