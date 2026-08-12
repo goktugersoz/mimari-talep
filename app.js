@@ -129,7 +129,16 @@
           const areaStr = p.areaM2.toString().includes('m²') ? p.areaM2.trim() : p.areaM2.trim() + ' m²';
           parts.push(areaStr);
         }
-        if (p.projectType) parts.push(p.projectType.trim());
+        if (p.projectType) {
+          let typePart = p.projectType.trim();
+          const trLower = typePart.toLocaleLowerCase('tr-TR');
+          if (trLower.endsWith(' planı')) {
+            typePart = typePart.slice(0, -6).trim();
+          } else if (trLower.endsWith(' plan')) {
+            typePart = typePart.slice(0, -5).trim();
+          }
+          if (typePart) parts.push(typePart);
+        }
         
         let customName = parts.join(' - ');
         if (!customName) {
