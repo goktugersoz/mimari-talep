@@ -1114,22 +1114,23 @@
 
       // ---- rendering ----
       function renderGrid() {
-        const q = (searchInput.value || '').trim().toLowerCase();
+        const q = (searchInput.value || '').trim().toLocaleLowerCase('tr-TR');
         const filtered = projects
           .filter(p => {
             if (!q) return true;
-            return (p.company || '').toLowerCase().includes(q)
-              || (p.crmCode || '').toLowerCase().includes(q)
-              || (p.buildingCode || '').toLowerCase().includes(q)
-              || (p.projectType || '').toLowerCase().includes(q)
-              || (p.employee || '').toLowerCase().includes(q)
-              || (p.customerName || '').toLowerCase().includes(q)
-              || (p.notes || '').toLowerCase().includes(q)
-              || (p.fileName || '').toLowerCase().includes(q)
-              || (p.status || '').toLowerCase().includes(q)
-              || (p.areaM2 || '').toString().toLowerCase().includes(q)
-              || (p.date || '').toLowerCase().includes(q)
-              || fmtDate(p.date).toLowerCase().includes(q);
+            const trLower = (str) => String(str || '').toLocaleLowerCase('tr-TR');
+            return trLower(p.company).includes(q)
+              || trLower(p.crmCode).includes(q)
+              || trLower(p.buildingCode).includes(q)
+              || trLower(p.projectType).includes(q)
+              || trLower(p.employee).includes(q)
+              || trLower(p.customerName).includes(q)
+              || trLower(p.notes).includes(q)
+              || trLower(p.fileName).includes(q)
+              || trLower(p.status).includes(q)
+              || trLower(p.areaM2).includes(q)
+              || trLower(p.date).includes(q)
+              || trLower(fmtDate(p.date)).includes(q);
           })
           .sort((a, b) => (b.crmCode || '').localeCompare(a.crmCode || ''));
 
