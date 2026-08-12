@@ -1,4 +1,4 @@
-﻿:root {
+:root {
       --paper: #F8F9FA;
       --grid-line: #E0E0E0;
       --ink: #32373c;
@@ -159,6 +159,128 @@
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
       gap: 16px;
+    }
+
+    .grid.list-view {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .grid.list-view .card {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0;
+      cursor: pointer;
+      min-height: auto;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border: 1px solid var(--line);
+    }
+    .grid.list-view .card.readonly-card {
+      cursor: default;
+    }
+    .grid.list-view .card:not(.readonly-card):hover {
+      transform: none;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .grid.list-view .card-head {
+      flex: 0 0 140px;
+      min-width: 140px;
+      height: 100%;
+      border-radius: 8px 0 0 8px;
+      align-self: stretch;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 12px;
+    }
+    .grid.list-view .card-body {
+      display: flex;
+      flex-direction: row;
+      flex: 1;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .grid.list-view .card-company {
+      margin: 0;
+      font-size: 14px;
+      flex: 1;
+      min-width: 150px;
+    }
+    .grid.list-view .card-row {
+      border-top: none;
+      border-left: 1px dashed var(--grid-line);
+      padding: 0 10px;
+      flex: 1;
+      min-width: 120px;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+    }
+    .grid.list-view .card-row:first-of-type {
+      border-left: none;
+    }
+    .grid.list-view .card-type {
+      margin-top: 0;
+      flex: none;
+      align-self: center;
+    }
+    .grid.list-view .card-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: none;
+    }
+    @media (max-width: 768px) {
+      .grid.list-view .card {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .grid.list-view .card-head {
+        flex: none;
+        min-width: 0;
+        border-radius: 8px 8px 0 0;
+        padding: 8px 12px;
+      }
+      .grid.list-view .card-body {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding: 10px;
+      }
+      .grid.list-view .card-company {
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+      .grid.list-view .card-row {
+        border-left: none;
+        border-top: 1px dashed var(--grid-line);
+        padding: 6px 0;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        flex: none;
+        min-width: 0;
+      }
+      .grid.list-view .card-row[style*="background"] {
+        border-left: none !important;
+        background: #e8f0fe !important;
+        padding: 6px 8px !important;
+        margin-top: 8px !important;
+        border-radius: 4px;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+      }
+      .grid.list-view .card-type {
+        margin-left: 0;
+        align-self: flex-start;
+        margin-top: 8px;
+      }
     }
 
     .card {
