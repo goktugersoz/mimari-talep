@@ -1392,6 +1392,22 @@
     }
     const newStatus = (p.status || 'Bekliyor') === 'Bekliyor' ? 'Yapıldı' : 'Bekliyor';
 
+    if (newStatus === 'Yapıldı') {
+      const hasDwg = p.fileDwgData && p.fileDwgData.trim() !== '';
+      const hasAxd = p.fileAxdData && p.fileAxdData.trim() !== '';
+      const hasExcel = p.fileExcelData && p.fileExcelData.trim() !== '';
+      
+      if (!hasDwg || !hasAxd || !hasExcel) {
+        const missing = [];
+        if (!hasDwg) missing.push("AutoCAD (.dwg)");
+        if (!hasAxd) missing.push("AXD (.axd)");
+        if (!hasExcel) missing.push("Excel (.xls/.xlsx)");
+        
+        showToast(`Talebi "Yapıldı" yapmak için eksik dosyaları yüklemelisiniz: ${missing.join(', ')}`, true);
+        return;
+      }
+    }
+
     let ok = false;
     if (useSupabase) {
       try {
