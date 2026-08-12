@@ -1239,62 +1239,74 @@
           </div>
         </div>
         <div class="card-body">
-          <p class="card-company">${esc(p.company)}</p>
-          <div class="card-row"><span>Bina Kodu</span><b>${esc(p.buildingCode || '—')}</b></div>
-          <div class="card-row"><span>Bina Alanı</span><b>${p.areaM2 ? (p.areaM2.toString().includes('m²') ? esc(p.areaM2) : esc(p.areaM2) + ' m²') : '—'}</b></div>
-          <div class="card-row"><span>Personel</span><b>${esc(p.employee) || '—'}</b></div>
-          <div class="card-row"><span>Tarih</span><b>${fmtDate(p.date)}</b></div>
-          ${p.customerName ? `<div class="card-row"><span>Müşteri</span><b>${esc(p.customerName)}</b></div>` : ''}
-          ${p.notes ? (() => {
-            const displayNotes = p.notes.replace(/\[DraftID: [^\]]+\]/g, '').trim();
-            return displayNotes ? `<div class="card-row card-notes-row"><span>Not</span><b style="font-family:'Inter',sans-serif;font-weight:500;word-break:break-word;">${esc(displayNotes)}</b></div>` : '';
-          })() : ''}
-          <span class="card-type">${esc(p.projectType)}</span>
+          <div class="card-main-info">
+            <p class="card-company">${esc(p.company)}</p>
+            <div class="card-row"><span>Bina Kodu</span><b>${esc(p.buildingCode || '—')}</b></div>
+            <div class="card-row"><span>Bina Alanı</span><b>${p.areaM2 ? (p.areaM2.toString().includes('m²') ? esc(p.areaM2) : esc(p.areaM2) + ' m²') : '—'}</b></div>
+            <div class="card-row"><span>Personel</span><b>${esc(p.employee) || '—'}</b></div>
+            <div class="card-row"><span>Tarih</span><b>${fmtDate(p.date)}</b></div>
+            ${p.customerName ? `<div class="card-row"><span>Müşteri</span><b>${esc(p.customerName)}</b></div>` : ''}
+            <span class="card-type">${esc(p.projectType)}</span>
+          </div>
+          
           ${(() => {
-        let filesHtml = '';
-        if (p.fileDwgName && p.fileDwgData) {
-          filesHtml += `
-                <div class="card-row" style="background:#e8f0fe; padding:6px 8px; border-radius:4px; margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            const displayNotes = p.notes ? p.notes.replace(/\[DraftID: [^\]]+\]/g, '').trim() : '';
+            const hasNotes = !!displayNotes;
+            const hasFiles = (p.fileDwgName && p.fileDwgData) || (p.fileExcelName && p.fileExcelData) || (p.fileAxdName && p.fileAxdData) || (p.fileName && p.fileData);
+            
+            if (!hasNotes && !hasFiles) return '';
+            
+            let filesHtml = '';
+            if (p.fileDwgName && p.fileDwgData) {
+              filesHtml += `
+                <div class="card-file-item dwg-file">
                   <span>AutoCAD (.dwg)</span>
-                  <a href="${p.fileDwgData}" style="color:#1a73e8; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:4px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" onclick="downloadProjectFileCustom(event, '${esc(p.fileDwgData)}', '${esc(p.fileDwgName)}', '${esc(p.id)}')" title="${esc(p.fileDwgName)}">
+                  <a href="${p.fileDwgData}" onclick="downloadProjectFileCustom(event, '${esc(p.fileDwgData)}', '${esc(p.fileDwgName)}', '${esc(p.id)}')" title="${esc(p.fileDwgName)}">
                     📁 ${esc(p.fileDwgName)} (${formatBytes(p.fileDwgSize)})
                   </a>
                 </div>
               `;
-        }
-        if (p.fileExcelName && p.fileExcelData) {
-          filesHtml += `
-                <div class="card-row" style="background:#e8f0fe; padding:6px 8px; border-radius:4px; margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            }
+            if (p.fileExcelName && p.fileExcelData) {
+              filesHtml += `
+                <div class="card-file-item excel-file">
                   <span>Excel (.xls/.xlsx)</span>
-                  <a href="${p.fileExcelData}" style="color:#1a73e8; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:4px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" onclick="downloadProjectFileCustom(event, '${esc(p.fileExcelData)}', '${esc(p.fileExcelName)}', '${esc(p.id)}')" title="${esc(p.fileExcelName)}">
+                  <a href="${p.fileExcelData}" onclick="downloadProjectFileCustom(event, '${esc(p.fileExcelData)}', '${esc(p.fileExcelName)}', '${esc(p.id)}')" title="${esc(p.fileExcelName)}">
                     📁 ${esc(p.fileExcelName)} (${formatBytes(p.fileExcelSize)})
                   </a>
                 </div>
               `;
-        }
-        if (p.fileAxdName && p.fileAxdData) {
-          filesHtml += `
-                <div class="card-row" style="background:#e8f0fe; padding:6px 8px; border-radius:4px; margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            }
+            if (p.fileAxdName && p.fileAxdData) {
+              filesHtml += `
+                <div class="card-file-item axd-file">
                   <span>AXD (.axd)</span>
-                  <a href="${p.fileAxdData}" style="color:#1a73e8; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:4px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" onclick="downloadProjectFileCustom(event, '${esc(p.fileAxdData)}', '${esc(p.fileAxdName)}', '${esc(p.id)}')" title="${esc(p.fileAxdName)}">
+                  <a href="${p.fileAxdData}" onclick="downloadProjectFileCustom(event, '${esc(p.fileAxdData)}', '${esc(p.fileAxdName)}', '${esc(p.id)}')" title="${esc(p.fileAxdName)}">
                     📁 ${esc(p.fileAxdName)} (${formatBytes(p.fileAxdSize)})
                   </a>
                 </div>
               `;
-        }
-        if (p.fileName && p.fileData) {
-          filesHtml += `
-                <div class="card-row" style="background:#e8f0fe; padding:6px 8px; border-radius:4px; margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            }
+            if (p.fileName && p.fileData) {
+              filesHtml += `
+                <div class="card-file-item other-file">
                   <span>Dosya</span>
-                  <a href="${p.fileData}" style="color:#1a73e8; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:4px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" onclick="downloadProjectFileCustom(event, '${esc(p.fileData)}', '${esc(p.fileName)}', '${esc(p.id)}')" title="${esc(p.fileName)}">
+                  <a href="${p.fileData}" onclick="downloadProjectFileCustom(event, '${esc(p.fileData)}', '${esc(p.fileName)}', '${esc(p.id)}')" title="${esc(p.fileName)}">
                     📁 ${esc(p.fileName)} (${formatBytes(p.fileSize)})
                   </a>
                 </div>
               `;
-        }
-        return filesHtml;
-      })()}
-        </div>
+            }
+            
+            return `
+              <div class="card-sub-info">
+                ${displayNotes ? `<div class="card-sub-note"><strong>Not:</strong><span>${esc(displayNotes)}</span></div>` : '<div></div>'}
+                <div class="card-sub-files">
+                  ${filesHtml}
+                </div>
+              </div>
+            `;
+          })()}
       </div>`;
   }
 
