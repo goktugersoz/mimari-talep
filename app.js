@@ -28,7 +28,6 @@
       let crmStartCode = String(new Date().getFullYear()).slice(-2) + '-00001';
       let drafts = [];
       let attachedDraftFile = null;
-      let useDraftsSupabase = true;
       let activeDraftIdForNewProject = null;
 
 
@@ -1717,57 +1716,37 @@
 
       // ---- draft projects logic ----
       async function loadDrafts() {
-        if (!storageAvailable()) {
+        if (!useSupabase) {
+          showToast("Supabase bağlantısı aktif değil.", true);
           drafts = [];
           renderDrafts();
           return;
         }
-        if (useSupabase && useDraftsSupabase) {
-          try {
-            const { data, error } = await supabase.from('draft_projects').select('*').order('created_at', { ascending: false });
-            if (error) {
-              if (error.message && error.message.includes('Could not find the table')) {
-                useDraftsSupabase = false;
-                throw error;
-              }
-              throw error;
-            }
-            drafts = (data || []).map(d => ({
-              id: d.id,
-              fileName: d.file_name,
-              fileUrl: d.file_url,
-              fileSize: d.file_size,
-              crmRequested: !!d.crm_requested,
-              takimRequested: !!d.takim_requested,
-              sayimRequested: !!d.sayim_requested,
-              uploadedBy: d.uploaded_by || '—',
-              createdAt: d.created_at
-            }));
-            renderDrafts();
-            return;
-          } catch (e) {
-            console.warn("Supabase loadDrafts failed, falling back to LocalStorage:", e);
-          }
-        }
-        
         try {
-          const val = await getStorageItem('mimari-taslak-projeler');
-          drafts = val ? JSON.parse(val) : [];
+          const { data, error } = await supabase.from('draft_projects').select('*').order('created_at', { ascending: false });
+          if (error) throw error;
+          drafts = (data || []).map(d => ({
+            id: d.id,
+            fileName: d.file_name,
+            fileUrl: d.file_url,
+            fileSize: d.file_size,
+            crmRequested: !!d.crm_requested,
+            takimRequested: !!d.takim_requested,
+            sayimRequested: !!d.sayim_requested,
+            uploadedBy: d.uploaded_by || '—',
+            createdAt: d.created_at,
+            status: d.status || 'mevcut'
+          }));
         } catch (e) {
+          console.error("Supabase loadDrafts error:", e);
+          showToast("Taslaklar veritabanından yüklenemedi: " + e.message, true);
           drafts = [];
         }
         renderDrafts();
       }
 
       async function saveDrafts() {
-        if (useSupabase && useDraftsSupabase) return true;
-        if (!storageAvailable()) return true;
-        try {
-          return await setStorageItem('mimari-taslak-projeler', JSON.stringify(drafts));
-        } catch (e) {
-          console.error(e);
-          return false;
-        }
+        return true;
       }
 
       window.downloadDraftFileCustom = async function(e, url, originalName) {
@@ -1805,32 +1784,24 @@
       async function updateDraftStatus(id, field, value) {
         const d = drafts.find(x => x.id === id);
         if (!d) return;
+        const oldValue = d[field];
         d[field] = value;
         
-        if (useSupabase && useDraftsSupabase) {
-          try {
-            let dbField = field;
-            if (field === 'crmRequested') dbField = 'crm_requested';
-            else if (field === 'takimRequested') dbField = 'takim_requested';
-            else if (field === 'sayimRequested') dbField = 'sayim_requested';
-            
-            const { error } = await supabase.from('draft_projects').update({ [dbField]: value }).eq('id', id);
-            if (error) {
-              if (error.message && error.message.includes('Could not find the table')) {
-                useDraftsSupabase = false;
-              }
-              throw error;
-            }
-            showToast("Taslak güncellendi.");
-          } catch (e) {
-            console.error(e);
-            showToast("Hata: Güncellenemedi.", true);
-            d[field] = !value;
-            renderDrafts();
-          }
-        } else {
-          await saveDrafts();
-          showToast("Taslak güncellendi (Yerel Hafıza).");
+        try {
+          if (!useSupabase) throw new Error("Supabase bağlantısı aktif değil.");
+          let dbField = field;
+          if (field === 'crmRequested') dbField = 'crm_requested';
+          else if (field === 'takimRequested') dbField = 'takim_requested';
+          else if (field === 'sayimRequested') dbField = 'sayim_requested';
+          
+          const { error } = await supabase.from('draft_projects').update({ [dbField]: value }).eq('id', id);
+          if (error) throw error;
+          showToast("Taslak güncellendi.");
+        } catch (e) {
+          console.error(e);
+          showToast("Hata: Güncellenemedi. " + e.message, true);
+          d[field] = oldValue;
+          renderDrafts();
         }
       }
 
@@ -1839,25 +1810,17 @@
         const d = drafts.find(x => x.id === id);
         if (!d) return;
         
-        let ok = false;
-        if (useSupabase && useDraftsSupabase) {
-          try {
-            const { error } = await supabase.from('draft_projects').delete().eq('id', id);
-            if (error) throw error;
-            ok = true;
-          } catch (e) {
-            console.error(e);
-            showToast("Hata: Silinemedi.", true);
-          }
-        } else {
-          ok = true;
-        }
-        
-        if (ok) {
+        try {
+          if (!useSupabase) throw new Error("Supabase bağlantısı aktif değil.");
+          const { error } = await supabase.from('draft_projects').delete().eq('id', id);
+          if (error) throw error;
+          
           drafts = drafts.filter(x => x.id !== id);
-          await saveDrafts();
           renderDrafts();
           showToast("Taslak silindi.");
+        } catch (e) {
+          console.error(e);
+          showToast("Hata: Silinemedi. " + e.message, true);
         }
       };
 
@@ -1872,16 +1835,26 @@
         btn.textContent = 'Yükleniyor...';
         
         try {
-          let fileUrl = null;
-          if (useSupabase) {
-            fileUrl = await uploadProjectFile(attachedDraftFile);
-          } else {
-            fileUrl = attachedDraftFile.data;
-          }
+          if (!useSupabase) throw new Error("Supabase bağlantısı aktif değil.");
+          const fileUrl = await uploadProjectFile(attachedDraftFile);
           
           const entryId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
           const username = currentUser ? (currentUser.personnelName || currentUser.username) : 'Anonim';
           const dateStr = new Date().toISOString();
+          
+          const { error } = await supabase.from('draft_projects').insert({
+            id: entryId,
+            file_name: attachedDraftFile.name,
+            file_url: fileUrl,
+            file_size: attachedDraftFile.size,
+            crm_requested: false,
+            takim_requested: false,
+            sayim_requested: false,
+            uploaded_by: username,
+            created_at: dateStr,
+            status: 'mevcut'
+          });
+          if (error) throw error;
           
           const newDraft = {
             id: entryId,
@@ -1892,37 +1865,11 @@
             takimRequested: false,
             sayimRequested: false,
             uploadedBy: username,
-            createdAt: dateStr
+            createdAt: dateStr,
+            status: 'mevcut'
           };
           
-          let savedToSupabase = false;
-          if (useSupabase && useDraftsSupabase) {
-            try {
-              const { error } = await supabase.from('draft_projects').insert({
-                id: entryId,
-                file_name: attachedDraftFile.name,
-                file_url: fileUrl,
-                file_size: attachedDraftFile.size,
-                crm_requested: false,
-                takim_requested: false,
-                sayim_requested: false,
-                uploaded_by: username,
-                created_at: dateStr
-              });
-              if (error) {
-                if (error.message && error.message.includes('Could not find the table')) {
-                  useDraftsSupabase = false;
-                }
-                throw error;
-              }
-              savedToSupabase = true;
-            } catch (e) {
-              console.warn("Supabase draft insert failed, falling back to LocalStorage:", e);
-            }
-          }
-          
           drafts.unshift(newDraft);
-          await saveDrafts();
           
           $('inpDraftFile').value = '';
           attachedDraftFile = null;
@@ -1930,11 +1877,7 @@
           $('btnRemoveDraftFile').classList.add('hidden');
           
           renderDrafts();
-          if (savedToSupabase) {
-            showToast("Taslak başarıyla yüklendi.");
-          } else {
-            showToast("Taslak başarıyla yüklendi (Yerel Hafıza).");
-          }
+          showToast("Taslak başarıyla yüklendi.");
         } catch (e) {
           console.error("Draft upload error:", e);
           showToast("Taslak yüklenirken hata oluştu: " + e.message, true);
