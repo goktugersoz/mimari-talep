@@ -909,6 +909,12 @@
       max-width: 130px !important;
     }
 
+    .grid.list-view .card-notes-row {
+      flex: 2 !important;
+      min-width: 200px !important;
+      max-width: 320px !important;
+    }
+
     .grid.list-view .card-type {
       margin-top: 0;
       margin-left: auto;
