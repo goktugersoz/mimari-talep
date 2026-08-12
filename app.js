@@ -29,6 +29,7 @@
       let drafts = [];
       let attachedDraftFile = null;
       let useDraftsSupabase = true;
+      let activeDraftIdForNewProject = null;
 
 
       async function saveSettings(codeVal) {
@@ -1640,6 +1641,10 @@
 
         if (ok) {
           showToast(editingProjectId ? 'Değişiklikler kaydedildi.' : 'Talep listeye eklendi: ' + crm);
+          if (activeDraftIdForNewProject) {
+            updateDraftStatus(activeDraftIdForNewProject, 'status', 'tamamlanan');
+            activeDraftIdForNewProject = null;
+          }
           resetForm();
           renderGrid();
           updateNextCodeHint();
@@ -1804,10 +1809,19 @@
         
         if (useSupabase && useDraftsSupabase) {
           try {
-            const dbField = field === 'crmRequested' ? 'crm_requested' : (field === 'takimRequested' ? 'takim_requested' : 'sayim_requested');
+            let dbField = field;
+            if (field === 'crmRequested') dbField = 'crm_requested';
+            else if (field === 'takimRequested') dbField = 'takim_requested';
+            else if (field === 'sayimRequested') dbField = 'sayim_requested';
+            
             const { error } = await supabase.from('draft_projects').update({ [dbField]: value }).eq('id', id);
-            if (error) throw error;
-            showToast("Talep güncellendi.");
+            if (error) {
+              if (error.message && error.message.includes('Could not find the table')) {
+                useDraftsSupabase = false;
+              }
+              throw error;
+            }
+            showToast("Taslak güncellendi.");
           } catch (e) {
             console.error(e);
             showToast("Hata: Güncellenemedi.", true);
@@ -1816,7 +1830,7 @@
           }
         } else {
           await saveDrafts();
-          showToast("Talep güncellendi (Yerel Hafıza).");
+          showToast("Taslak güncellendi (Yerel Hafıza).");
         }
       }
 
@@ -1930,38 +1944,146 @@
         }
       }
 
-      function renderDrafts() {
-        const list = $('draftsListTable');
-        if (!list) return;
-        if (drafts.length === 0) {
-          list.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--ink-soft); padding:30px;">Henüz taslak yüklenmemiş.</td></tr>`;
+      window.sendDraftToForm = async function(id) {
+        const d = drafts.find(x => x.id === id);
+        if (!d) return;
+        
+        if (!d.crmRequested && !d.takimRequested && !d.sayimRequested) {
+          showToast("Lütfen en az bir yapılacak iş (CRM, TAKIM, SAYIM) işaretleyin.", true);
           return;
         }
-        list.innerHTML = drafts.map(d => {
-          const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—';
-          
-          const crmChecked = d.crmRequested ? 'checked' : '';
-          const takimChecked = d.takimRequested ? 'checked' : '';
-          const sayimChecked = d.sayimRequested ? 'checked' : '';
-          
-          return `<tr>
-            <td>
-              <a href="${d.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(d.fileUrl)}', '${esc(d.fileName)}')">
-                📁 ${esc(d.fileName)} (${formatBytes(d.fileSize)})
-              </a>
-            </td>
-            <td>${esc(d.uploadedBy)}</td>
-            <td>${dateStr}</td>
-            <td style="text-align:center;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="crmRequested" ${crmChecked}></td>
-            <td style="text-align:center;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="takimRequested" ${takimChecked}></td>
-            <td style="text-align:center;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="sayimRequested" ${sayimChecked}></td>
-            <td style="text-align:center;">
-              <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
-            </td>
-          </tr>`;
-        }).join('');
         
-        list.querySelectorAll('.draft-chk').forEach(chk => {
+        await updateDraftStatus(id, 'status', 'bekleyen');
+        activeDraftIdForNewProject = id;
+        
+        // Fill Dwg input
+        attachedFiles.dwg = {
+          name: d.fileName,
+          size: d.fileSize,
+          data: d.fileUrl,
+          fileRaw: null
+        };
+        $('fileStatusDwg').textContent = `Hazır (Taslak): ${d.fileName} (${formatBytes(d.fileSize)})`;
+        $('btnRemoveFileDwg').classList.remove('hidden');
+        
+        // Fill Notes with requests
+        const tales = [];
+        if (d.crmRequested) tales.push('CRM');
+        if (d.takimRequested) tales.push('TAKIM');
+        if (d.sayimRequested) tales.push('SAYIM');
+        $('inpNotes').value = `[Taslaktan Talebe Gönderildi. Talepler: ${tales.join(', ')}]`;
+        
+        switchTab('form');
+        renderDrafts();
+        showToast("Taslak talep formuna gönderildi! Lütfen diğer detayları doldurup kaydedin.");
+      };
+
+      function renderDrafts() {
+        const listMevcut = $('draftsListTable');
+        const listPending = $('draftsPendingTable');
+        const listCompleted = $('draftsCompletedTable');
+        
+        if (!listMevcut) return;
+        
+        const mevcut = drafts.filter(d => (d.status || 'mevcut') === 'mevcut');
+        const pending = drafts.filter(d => d.status === 'bekleyen');
+        const completed = drafts.filter(d => d.status === 'tamamlanan');
+        
+        // Render Mevcut
+        if (mevcut.length === 0) {
+          listMevcut.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--ink-soft); padding:30px;">Mevcut taslak bulunmamaktadır.</td></tr>`;
+        } else {
+          listMevcut.innerHTML = mevcut.map(d => {
+            const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—';
+            const crmChecked = d.crmRequested ? 'checked' : '';
+            const takimChecked = d.takimRequested ? 'checked' : '';
+            const sayimChecked = d.sayimRequested ? 'checked' : '';
+            
+            return `<tr>
+              <td>
+                <a href="${d.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(d.fileUrl)}', '${esc(d.fileName)}')">
+                  📁 ${esc(d.fileName)} (${formatBytes(d.fileSize)})
+                </a>
+              </td>
+              <td>${esc(d.uploadedBy)}</td>
+              <td>${dateStr}</td>
+              <td style="text-align:center;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="crmRequested" ${crmChecked}></td>
+              <td style="text-align:center;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="takimRequested" ${takimChecked}></td>
+              <td style="text-align:center;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="sayimRequested" ${sayimChecked}></td>
+              <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
+                <button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent);" onclick="sendDraftToForm('${d.id}')" title="Talebe Gönder">Talebe Gönder ➡️</button>
+                <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
+              </td>
+            </tr>`;
+          }).join('');
+        }
+        
+        // Render Pending
+        if (listPending) {
+          if (pending.length === 0) {
+            listPending.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--ink-soft); padding:30px;">Bekleyen taslak bulunmamaktadır.</td></tr>`;
+          } else {
+            listPending.innerHTML = pending.map(d => {
+              const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—';
+              const tales = [];
+              if (d.crmRequested) tales.push('CRM');
+              if (d.takimRequested) tales.push('TAKIM');
+              if (d.sayimRequested) tales.push('SAYIM');
+              
+              return `<tr>
+                <td>
+                  <a href="${d.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(d.fileUrl)}', '${esc(d.fileName)}')">
+                    📁 ${esc(d.fileName)} (${formatBytes(d.fileSize)})
+                  </a>
+                </td>
+                <td>${esc(d.uploadedBy)}</td>
+                <td>${dateStr}</td>
+                <td style="text-align:center;">
+                  ${tales.map(t => `<span style="display:inline-block; font-size:10px; background:var(--accent); color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">${t}</span>`).join('')}
+                </td>
+                <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
+                  <button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent-dark);" onclick="sendDraftToForm('${d.id}')" title="Yeni Talep Formuna Git">Talebi Oluştur 📝</button>
+                  <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
+                </td>
+              </tr>`;
+            }).join('');
+          }
+        }
+        
+        // Render Completed
+        if (listCompleted) {
+          if (completed.length === 0) {
+            listCompleted.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--ink-soft); padding:30px;">Tamamlanan taslak bulunmamaktadır.</td></tr>`;
+          } else {
+            listCompleted.innerHTML = completed.map(d => {
+              const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—';
+              const tales = [];
+              if (d.crmRequested) tales.push('CRM');
+              if (d.takimRequested) tales.push('TAKIM');
+              if (d.sayimRequested) tales.push('SAYIM');
+              
+              return `<tr>
+                <td>
+                  <a href="${d.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(d.fileUrl)}', '${esc(d.fileName)}')">
+                    📁 ${esc(d.fileName)} (${formatBytes(d.fileSize)})
+                  </a>
+                </td>
+                <td>${esc(d.uploadedBy)}</td>
+                <td>${dateStr}</td>
+                <td style="text-align:center;">
+                  ${tales.map(t => `<span style="display:inline-block; font-size:10px; background:var(--success); color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">${t}</span>`).join('')}
+                </td>
+                <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
+                  <span style="display:inline-block; font-size:11px; background:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9; padding:4px 8px; border-radius:4px; font-weight:bold;">TAMAMLANDI ✓</span>
+                  <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
+                </td>
+              </tr>`;
+            }).join('');
+          }
+        }
+        
+        // Attach change listeners to Mevcut table checkboxes
+        document.querySelectorAll('#draftsListTable .draft-chk').forEach(chk => {
           chk.addEventListener('change', async (e) => {
             const id = e.target.dataset.id;
             const field = e.target.dataset.field;
