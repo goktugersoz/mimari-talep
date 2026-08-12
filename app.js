@@ -26,6 +26,9 @@
       let attachedFiles = { dwg: null, excel: null, axd: null };
       let currentView = 'grid';
       let crmStartCode = String(new Date().getFullYear()).slice(-2) + '-00001';
+      let drafts = [];
+      let attachedDraftFile = null;
+
 
       async function saveSettings(codeVal) {
         crmStartCode = codeVal.trim();
@@ -1679,6 +1682,7 @@
         $('panel-personnel').classList.toggle('hidden', name !== 'personnel');
         $('panel-admin').classList.toggle('hidden', name !== 'admin');
         $('panel-stats').classList.toggle('hidden', name !== 'stats');
+        $('panel-drafts').classList.toggle('hidden', name !== 'drafts');
         if (name === 'form') {
           updateNextCodeHint();
           if (!$('inpCrm').value) $('inpCrm').value = suggestNextCrm();
@@ -1700,6 +1704,249 @@
         if (name === 'stats') {
           renderStats();
         }
+        if (name === 'drafts') {
+          loadDrafts();
+        }
+      }
+
+      // ---- draft projects logic ----
+      async function loadDrafts() {
+        if (!storageAvailable()) {
+          drafts = [];
+          renderDrafts();
+          return;
+        }
+        if (useSupabase) {
+          try {
+            const { data, error } = await supabase.from('draft_projects').select('*').order('created_at', { ascending: false });
+            if (error) throw error;
+            drafts = (data || []).map(d => ({
+              id: d.id,
+              fileName: d.file_name,
+              fileUrl: d.file_url,
+              fileSize: d.file_size,
+              crmRequested: !!d.crm_requested,
+              takimRequested: !!d.takim_requested,
+              sayimRequested: !!d.sayim_requested,
+              uploadedBy: d.uploaded_by || '—',
+              createdAt: d.created_at
+            }));
+          } catch (e) {
+            console.error("Supabase loadDrafts error:", e);
+            showToast("Taslaklar veritabanından yüklenemedi: " + e.message, true);
+            drafts = [];
+          }
+        } else {
+          try {
+            const val = await getStorageItem('mimari-taslak-projeler');
+            drafts = val ? JSON.parse(val) : [];
+          } catch (e) {
+            drafts = [];
+          }
+        }
+        renderDrafts();
+      }
+
+      async function saveDrafts() {
+        if (useSupabase) return true;
+        if (!storageAvailable()) return true;
+        try {
+          return await setStorageItem('mimari-taslak-projeler', JSON.stringify(drafts));
+        } catch (e) {
+          console.error(e);
+          return false;
+        }
+      }
+
+      window.downloadDraftFileCustom = async function(e, url, originalName) {
+        e.preventDefault();
+        e.stopPropagation();
+        let customName = originalName.replace(/\.[^/.]+$/, "");
+        customName = toTitleCase(customName) + ' Taslak.dwg';
+        customName = customName.replace(/[\\/:*?"<>|]/g, '_');
+        
+        showToast('Dosya indiriliyor...');
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('HTTP error ' + res.status);
+          const blob = await res.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = customName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
+          showToast('Dosya indirildi.');
+        } catch (err) {
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.download = customName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+      };
+
+      async function updateDraftStatus(id, field, value) {
+        const d = drafts.find(x => x.id === id);
+        if (!d) return;
+        d[field] = value;
+        
+        if (useSupabase) {
+          try {
+            const dbField = field === 'crmRequested' ? 'crm_requested' : (field === 'takimRequested' ? 'takim_requested' : 'sayim_requested');
+            const { error } = await supabase.from('draft_projects').update({ [dbField]: value }).eq('id', id);
+            if (error) throw error;
+            showToast("Talep güncellendi.");
+          } catch (e) {
+            console.error(e);
+            showToast("Hata: Güncellenemedi.", true);
+            d[field] = !value;
+            renderDrafts();
+          }
+        } else {
+          await saveDrafts();
+          showToast("Talep güncellendi.");
+        }
+      }
+
+      window.deleteDraftProject = async function(id) {
+        if (!confirm("Bu taslak projeyi silmek istediğinize emin misiniz?")) return;
+        const d = drafts.find(x => x.id === id);
+        if (!d) return;
+        
+        let ok = false;
+        if (useSupabase) {
+          try {
+            const { error } = await supabase.from('draft_projects').delete().eq('id', id);
+            if (error) throw error;
+            ok = true;
+          } catch (e) {
+            console.error(e);
+            showToast("Hata: Silinemedi.", true);
+          }
+        } else {
+          ok = true;
+        }
+        
+        if (ok) {
+          drafts = drafts.filter(x => x.id !== id);
+          await saveDrafts();
+          renderDrafts();
+          showToast("Taslak silindi.");
+        }
+      };
+
+      async function handleUploadDraft() {
+        if (!attachedDraftFile) {
+          showToast("Lütfen bir .dwg dosyası seçin.", true);
+          return;
+        }
+        
+        const btn = $('btnUploadDraft');
+        btn.disabled = true;
+        btn.textContent = 'Yükleniyor...';
+        
+        try {
+          let fileUrl = null;
+          if (useSupabase) {
+            fileUrl = await uploadProjectFile(attachedDraftFile);
+          } else {
+            fileUrl = attachedDraftFile.data;
+          }
+          
+          const entryId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+          const username = currentUser ? (currentUser.personnelName || currentUser.username) : 'Anonim';
+          const dateStr = new Date().toISOString();
+          
+          const newDraft = {
+            id: entryId,
+            fileName: attachedDraftFile.name,
+            fileUrl: fileUrl,
+            fileSize: attachedDraftFile.size,
+            crmRequested: false,
+            takimRequested: false,
+            sayimRequested: false,
+            uploadedBy: username,
+            createdAt: dateStr
+          };
+          
+          if (useSupabase) {
+            const { error } = await supabase.from('draft_projects').insert({
+              id: entryId,
+              file_name: attachedDraftFile.name,
+              file_url: fileUrl,
+              file_size: attachedDraftFile.size,
+              crm_requested: false,
+              takim_requested: false,
+              sayim_requested: false,
+              uploaded_by: username,
+              created_at: dateStr
+            });
+            if (error) throw error;
+          }
+          
+          drafts.unshift(newDraft);
+          await saveDrafts();
+          
+          $('inpDraftFile').value = '';
+          attachedDraftFile = null;
+          $('draftFileStatus').textContent = '';
+          $('btnRemoveDraftFile').classList.add('hidden');
+          
+          renderDrafts();
+          showToast("Taslak başarıyla yüklendi.");
+        } catch (e) {
+          console.error("Draft upload error:", e);
+          showToast("Taslak yüklenirken hata oluştu: " + e.message, true);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Taslağı Sisteme Yükle';
+        }
+      }
+
+      function renderDrafts() {
+        const list = $('draftsListTable');
+        if (!list) return;
+        if (drafts.length === 0) {
+          list.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--ink-soft); padding:30px;">Henüz taslak yüklenmemiş.</td></tr>`;
+          return;
+        }
+        list.innerHTML = drafts.map(d => {
+          const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—';
+          
+          const crmChecked = d.crmRequested ? 'checked' : '';
+          const takimChecked = d.takimRequested ? 'checked' : '';
+          const sayimChecked = d.sayimRequested ? 'checked' : '';
+          
+          return `<tr>
+            <td>
+              <a href="${d.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(d.fileUrl)}', '${esc(d.fileName)}')">
+                📁 ${esc(d.fileName)} (${formatBytes(d.fileSize)})
+              </a>
+            </td>
+            <td>${esc(d.uploadedBy)}</td>
+            <td>${dateStr}</td>
+            <td style="text-align:center;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="crmRequested" ${crmChecked}></td>
+            <td style="text-align:center;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="takimRequested" ${takimChecked}></td>
+            <td style="text-align:center;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="sayimRequested" ${sayimChecked}></td>
+            <td style="text-align:center;">
+              <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
+            </td>
+          </tr>`;
+        }).join('');
+        
+        list.querySelectorAll('.draft-chk').forEach(chk => {
+          chk.addEventListener('change', async (e) => {
+            const id = e.target.dataset.id;
+            const field = e.target.dataset.field;
+            const value = e.target.checked;
+            await updateDraftStatus(id, field, value);
+          });
+        });
       }
 
       document.querySelectorAll('.tab').forEach(t => {
@@ -1845,9 +2092,67 @@
       $('btnAddPersonnel').addEventListener('click', addPersonnel);
       $('inpNewPersonnel').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); addPersonnel(); }
-      
+      });
+
+      // Draft Project listeners
+      $('inpDraftFile').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+          attachedDraftFile = null;
+          $('draftFileStatus').textContent = '';
+          $('btnRemoveDraftFile').classList.add('hidden');
+          return;
+        }
         
-});
+        const maxLocalStorageSize = 2.5 * 1024 * 1024;
+        const maxSupabaseSize = 50 * 1024 * 1024;
+        const currentLimit = useSupabase ? maxSupabaseSize : maxLocalStorageSize;
+        
+        if (file.size > currentLimit) {
+          if (useSupabase) {
+            showToast('Dosya boyutu 50MB\'tan küçük olmalıdır.', true);
+          } else {
+            showToast('Dosya boyutu 2.5MB\'tan küçük olmalıdır. Büyük dosyalar yerel tarayıcı hafızasına kaydedilemez.', true);
+          }
+          $('inpDraftFile').value = '';
+          attachedDraftFile = null;
+          $('draftFileStatus').textContent = '';
+          $('btnRemoveDraftFile').classList.add('hidden');
+          return;
+        }
+        
+        if (useSupabase) {
+          attachedDraftFile = {
+            name: file.name,
+            size: file.size,
+            data: null,
+            fileRaw: file
+          };
+          $('draftFileStatus').textContent = `Hazır: ${file.name} (${formatBytes(file.size)})`;
+          $('btnRemoveDraftFile').classList.remove('hidden');
+        } else {
+          const reader = new FileReader();
+          reader.onload = function (evt) {
+            attachedDraftFile = {
+              name: file.name,
+              size: file.size,
+              data: evt.target.result
+            };
+            $('draftFileStatus').textContent = `Hazır: ${file.name} (${formatBytes(file.size)})`;
+            $('btnRemoveDraftFile').classList.remove('hidden');
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+      
+      $('btnRemoveDraftFile').addEventListener('click', () => {
+        $('inpDraftFile').value = '';
+        attachedDraftFile = null;
+        $('draftFileStatus').textContent = '';
+        $('btnRemoveDraftFile').classList.add('hidden');
+      });
+      
+      $('btnUploadDraft').addEventListener('click', handleUploadDraft);
 
       const now = new Date();
       $('revTag').textContent = now.toLocaleDateString('tr-TR') + ' · REV-01';

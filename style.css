@@ -1005,3 +1005,20 @@
   height: 400px;
 }
 
+/* DRAFTS TABLE */
+.drafts-table th, .drafts-table td {
+  font-family: 'Roboto', sans-serif;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+  padding: 10px;
+  vertical-align: middle;
+}
+.drafts-table tr:hover {
+  background-color: #f9f9f9;
+}
+.draft-chk {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}

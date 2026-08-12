@@ -63,6 +63,7 @@
       <div class="tab" data-tab="form">YENİ TALEP GİR</div>
       <div class="tab" data-tab="personnel">PERSONEL</div>
       <div class="tab" data-tab="stats" id="tab-stats">İSTATİSTİKLER</div>
+      <div class="tab" data-tab="drafts" id="tab-drafts">TASLAK PROJELER</div>
       <div class="tab hidden" data-tab="admin" id="tab-admin">ADMİN PANELİ</div>
     </div>
 
@@ -215,6 +216,48 @@
       <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px;">Aylık Proje Yoğunluğu</h3>
       <div class="chart-container">
         <canvas id="monthlyChart"></canvas>
+      </div>
+    </div>
+
+    <!-- DRAFTS -->
+    <div class="panel hidden" id="panel-drafts">
+      <p class="panel-lead">Çizilen taslak DWG dosyalarını buradan yükleyebilir, yanlarındaki CRM, TAKIM ve SAYIM kutucuklarını işaretleyerek talepleri yönetebilirsiniz.</p>
+      <div class="titleblock" style="max-width: 560px; margin-bottom: 25px;">
+        <div class="tb-top"><span>YENİ TASLAK DWG YÜKLE</span></div>
+        <div class="tb-grid" style="grid-template-columns: 1fr;">
+          <div class="cell" id="cell-draft-file">
+            <label>AutoCAD Dosyası (.dwg - Maks 50MB)</label>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <input id="inpDraftFile" type="file" accept=".dwg" style="font-size:13px;">
+              <button type="button" id="btnRemoveDraftFile" class="btn-cancel-edit hidden" style="padding:5px 12px; font-size:12px; height:auto; font-family:'Montserrat',sans-serif;">Kaldır</button>
+            </div>
+            <div id="draftFileStatus" class="hint" style="margin-top:5px; font-family:'Roboto',sans-serif;"></div>
+            <div class="field-err">Lütfen geçerli bir .dwg dosyası seçin.</div>
+          </div>
+        </div>
+        <div class="tb-actions" style="justify-content: flex-end; padding-top: 10px;">
+          <button class="btn-submit" id="btnUploadDraft" style="width: auto;">Taslağı Sisteme Yükle</button>
+        </div>
+      </div>
+
+      <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Mevcut Taslaklar</h3>
+      <div class="table-responsive" style="overflow-x:auto;">
+        <table class="drafts-table" style="width: 100%; border-collapse: collapse; margin-top: 15px; min-width: 600px;">
+          <thead>
+            <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+              <th style="padding: 12px 10px;">Dosya Adı</th>
+              <th style="padding: 12px 10px;">Yükleyen</th>
+              <th style="padding: 12px 10px;">Yükleme Tarihi</th>
+              <th style="padding: 12px 10px; text-align: center; width: 80px;">CRM</th>
+              <th style="padding: 12px 10px; text-align: center; width: 80px;">TAKIM</th>
+              <th style="padding: 12px 10px; text-align: center; width: 80px;">SAYIM</th>
+              <th style="padding: 12px 10px; text-align: center; width: 80px;">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody id="draftsListTable">
+            <!-- JS ile doldurulacak -->
+          </tbody>
+        </table>
       </div>
     </div>
 
