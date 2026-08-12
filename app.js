@@ -148,7 +148,11 @@
           
           const ext = originalName ? originalName.split('.').pop().toLowerCase() : 'dwg';
           if (ext === 'dwg') {
-            customName += ' Konut Planı';
+            if (customName.toLocaleLowerCase('tr-TR').endsWith('konut')) {
+              customName += ' Planı';
+            } else {
+              customName += ' Konut Planı';
+            }
           } else if (ext === 'xls' || ext === 'xlsx') {
             customName += ' Sayım Listesi';
           } else if (ext === 'axd') {
