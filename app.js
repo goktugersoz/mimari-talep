@@ -1648,6 +1648,10 @@
           renderGrid();
           updateNextCodeHint();
           renderPersonnelPanel();
+          
+          // Trigger draft status refresh
+          loadDrafts();
+          
           switchTab('board');
         }
       }
@@ -1919,7 +1923,7 @@
         if (d.crmRequested) tales.push('CRM');
         if (d.takimRequested) tales.push('TAKIM');
         if (d.sayimRequested) tales.push('SAYIM');
-        $('inpNotes').value = `[Taslaktan Talebe Gönderildi. Talepler: ${tales.join(', ')}]`;
+        $('inpNotes').value = `[Taslaktan Talebe Gönderildi. Talepler: ${tales.join(', ')}] [DraftID: ${d.id}]`;
         
         switchTab('form');
         renderDrafts();
@@ -1989,8 +1993,11 @@
             listPending.innerHTML = pending.map(d => {
               const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—';
               
-              // Find linked project by matching fileUrl or fileName
-              const linkedProject = projects.find(p => p.fileDwgData === d.fileUrl || p.fileDwgName === d.fileName);
+              // Find linked project by matching DraftID in notes, or fileUrl/fileName
+              const linkedProject = projects.find(p => {
+                if (p.notes && p.notes.includes(`[DraftID: ${d.id}]`)) return true;
+                return p.fileDwgData === d.fileUrl || p.fileDwgName === d.fileName;
+              });
               
               let crmOk = !d.crmRequested;
               let takimOk = !d.takimRequested;
@@ -1999,11 +2006,7 @@
               const badgesHtml = [];
               
               if (d.crmRequested) {
-                const crmValid = linkedProject && 
-                                  linkedProject.customerName && linkedProject.customerName.trim() !== '' &&
-                                  linkedProject.buildingCode && linkedProject.buildingCode.trim() !== '' &&
-                                  linkedProject.areaM2 && String(linkedProject.areaM2).trim() !== '' &&
-                                  linkedProject.company && linkedProject.company.trim() !== '';
+                const crmValid = !!linkedProject;
                 crmOk = crmValid;
                 const color = crmValid ? '#2ecc71' : '#e74c3c';
                 badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">CRM</span>`);
