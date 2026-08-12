@@ -1740,10 +1740,10 @@
           $('draftsTableWarning').classList.add('hidden');
         } catch (e) {
           console.error("Supabase loadDrafts error:", e);
-          if (e.message && e.message.includes('Could not find the table')) {
-            $('draftsTableWarning').classList.remove('hidden');
-          } else {
-            showToast("Taslaklar veritabanından yüklenemedi: " + e.message, true);
+          const warnEl = $('draftsTableWarning');
+          if (warnEl) {
+            warnEl.querySelector('p').innerHTML = `Taslaklar veritabanından yüklenemedi. Hata detayı: <strong style="color:var(--danger); font-weight:bold;">${e.message || e}</strong>. Bu sorunu çözmek için lütfen Supabase SQL Editor panelinizde aşağıdaki kodları çalıştırın ve sayfayı Ctrl+F5 ile yenileyin:`;
+            warnEl.classList.remove('hidden');
           }
           drafts = [];
         }
