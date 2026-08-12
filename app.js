@@ -1926,6 +1926,20 @@
         showToast("Taslak talep formuna gönderildi! Lütfen diğer detayları doldurup kaydedin.");
       };
 
+      async function updateDraftStatusInDbSilent(id, field, value) {
+        if (useSupabase) {
+          try {
+            let dbField = field;
+            if (field === 'crmRequested') dbField = 'crm_requested';
+            else if (field === 'takimRequested') dbField = 'takim_requested';
+            else if (field === 'sayimRequested') dbField = 'sayim_requested';
+            await supabase.from('draft_projects').update({ [dbField]: value }).eq('id', id);
+          } catch (e) {
+            console.error("Silent status update failed:", e);
+          }
+        }
+      }
+
       function renderDrafts() {
         const listMevcut = $('draftsListTable');
         const listPending = $('draftsPendingTable');
@@ -1971,12 +1985,53 @@
           if (pending.length === 0) {
             listPending.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--ink-soft); padding:30px;">Bekleyen taslak bulunmamaktadır.</td></tr>`;
           } else {
+            let needsRerender = false;
             listPending.innerHTML = pending.map(d => {
               const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—';
-              const tales = [];
-              if (d.crmRequested) tales.push('CRM');
-              if (d.takimRequested) tales.push('TAKIM');
-              if (d.sayimRequested) tales.push('SAYIM');
+              
+              // Find linked project by matching fileUrl or fileName
+              const linkedProject = projects.find(p => p.fileDwgData === d.fileUrl || p.fileDwgName === d.fileName);
+              
+              let crmOk = !d.crmRequested;
+              let takimOk = !d.takimRequested;
+              let sayimOk = !d.sayimRequested;
+              
+              const badgesHtml = [];
+              
+              if (d.crmRequested) {
+                const crmValid = linkedProject && 
+                                  linkedProject.customerName && linkedProject.customerName.trim() !== '' &&
+                                  linkedProject.buildingCode && linkedProject.buildingCode.trim() !== '' &&
+                                  linkedProject.areaM2 && String(linkedProject.areaM2).trim() !== '' &&
+                                  linkedProject.company && linkedProject.company.trim() !== '';
+                crmOk = crmValid;
+                const color = crmValid ? '#2ecc71' : '#e74c3c';
+                badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">CRM</span>`);
+              }
+              
+              if (d.takimRequested) {
+                const takimValid = linkedProject && 
+                                    linkedProject.fileDwgData && linkedProject.fileDwgData.trim() !== '' &&
+                                    linkedProject.fileAxdData && linkedProject.fileAxdData.trim() !== '';
+                takimOk = takimValid;
+                const color = takimValid ? '#2ecc71' : '#e74c3c';
+                badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">TAKIM</span>`);
+              }
+              
+              if (d.sayimRequested) {
+                const sayimValid = linkedProject && 
+                                    linkedProject.fileExcelData && linkedProject.fileExcelData.trim() !== '';
+                sayimOk = sayimValid;
+                const color = sayimValid ? '#2ecc71' : '#e74c3c';
+                badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">SAYIM</span>`);
+              }
+              
+              // If all active checkboxes are satisfied, auto-transition to completed!
+              if (crmOk && takimOk && sayimOk) {
+                d.status = 'tamamlanan';
+                updateDraftStatusInDbSilent(d.id, 'status', 'tamamlanan');
+                needsRerender = true;
+              }
               
               return `<tr>
                 <td>
@@ -1987,7 +2042,7 @@
                 <td>${esc(d.uploadedBy)}</td>
                 <td>${dateStr}</td>
                 <td style="text-align:center;">
-                  ${tales.map(t => `<span style="display:inline-block; font-size:10px; background:var(--accent); color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">${t}</span>`).join('')}
+                  ${badgesHtml.join('')}
                 </td>
                 <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
                   <button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent-dark);" onclick="sendDraftToForm('${d.id}')" title="Yeni Talep Formuna Git">Talebi Oluştur 📝</button>
@@ -1995,6 +2050,10 @@
                 </td>
               </tr>`;
             }).join('');
+            
+            if (needsRerender) {
+              setTimeout(() => renderDrafts(), 10);
+            }
           }
         }
         
