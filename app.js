@@ -1205,6 +1205,7 @@
           <div class="card-row"><span>Tarih</span><b>${fmtDate(p.date)}</b></div>
           ${p.customerName ? `<div class="card-row"><span>Müşteri</span><b>${esc(p.customerName)}</b></div>` : ''}
           ${p.notes ? `<div class="card-row"><span>Not</span><b style="font-family:'Inter',sans-serif;font-weight:500;">${esc(p.notes)}</b></div>` : ''}
+          <span class="card-type">${esc(p.projectType)}</span>
           ${(() => {
             let filesHtml = '';
             if (p.fileDwgName && p.fileDwgData) {
@@ -1249,7 +1250,6 @@
             }
             return filesHtml;
           })()}
-          <span class="card-type">${esc(p.projectType)}</span>
         </div>
       </div>`;
       }
