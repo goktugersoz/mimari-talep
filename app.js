@@ -314,7 +314,7 @@
         const matched = users.find(x => x.username.toLowerCase() === u.username.toLowerCase() && x.password === u.password);
         if (matched) {
           currentUser = matched;
-          showApp();
+          showApp(false);
           return;
         }
       } catch (e) { }
@@ -331,12 +331,18 @@
     $('dateNowLogin').textContent = now.toLocaleDateString('tr-TR');
   }
 
-  function showApp() {
+  function showApp(isLoginTriggered = false) {
     $('loginContainer').style.display = 'none';
     
     const isAccountant = currentUser && (currentUser.role === 'MUHASEBE' || currentUser.role === 'MUHASEBECİ');
     if (isAccountant) {
       window.location.href = 'muhasebe.html';
+      return;
+    }
+
+    const isManager = currentUser && (currentUser.role === 'admin' || currentUser.role === 'YÖNETİM' || currentUser.role === 'YÖNETİCİ');
+    if (isManager && isLoginTriggered) {
+      window.location.href = 'yonetim.html';
       return;
     }
 
@@ -446,7 +452,7 @@
     if (matched) {
       currentUser = matched;
       sessionStorage.setItem('mimari-session', JSON.stringify(currentUser));
-      showApp();
+      showApp(true);
       showToast('Giriş başarılı.');
     } else {
       showToast('Hatalı kullanıcı adı veya şifre.', true);

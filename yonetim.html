@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Yönetim Onay Paneli</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+</head>
+
+<body>
+  <div class="wrap" id="yonetimContainer">
+    <header>
+      <div>
+        <p class="brand-eyebrow" style="color: var(--accent-dark);">YÖNETİCİ PORTALİ · GİRİŞ YAPAN: <span id="lblCurrentYonetimUser" style="font-weight:700;">—</span></p>
+        <h1>Yönetim Onay Paneli</h1>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button id="btnGoToBoard" class="btn-cancel-edit"
+          style="padding:6px 12px; font-size:12px; height:auto; background:#3498db; color:#fff; border-color:#3498db;">PROJE PANOSU</button>
+        <button id="btnGoToAccounting" class="btn-cancel-edit"
+          style="padding:6px 12px; font-size:12px; height:auto; background:#2ecc71; color:#fff; border-color:#2ecc71;">MUHASEBE PORTALİ</button>
+        <button id="btnYonetimLogout" class="btn-cancel-edit"
+          style="padding:6px 12px; font-size:12px; height:auto; background:var(--danger); color:#fff; border-color:var(--danger);">ÇIKIŞ
+          YAP</button>
+      </div>
+    </header>
+
+    <div class="storage-warning hidden" id="yonetimStorageWarning">
+      🟢 Supabase veritabanı aktif ve bağlandı.
+    </div>
+
+    <!-- TABS FOR APPROVAL CATEGORIES -->
+    <div class="tabs">
+      <div class="tab active" data-yonetim-tab="projects-pending">PROJE GÜNCELLEME ONAYLARI (MUHASEBE)</div>
+      <div class="tab" data-yonetim-tab="purchase-pending">SATIN ALMA ONAYLARI (DİĞER BİRİMLER)</div>
+    </div>
+
+    <!-- 1. PROJECTS APPROVALS PANEL -->
+    <div class="panel" id="panel-projects-pending">
+      <h3 style="font-family:'Montserrat',sans-serif; margin-bottom:15px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Muhasebeden Gelen Proje Güncelleme Talepleri</h3>
+      <div class="table-responsive" style="overflow-x:auto;">
+        <table class="drafts-table" style="width: 100%; border-collapse: collapse; min-width: 900px;">
+          <thead>
+            <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+              <th style="padding: 12px 10px;">Talep Eden</th>
+              <th style="padding: 12px 10px; width: 110px;">CRM Kodu</th>
+              <th style="padding: 12px 10px;">Şube / Firma</th>
+              <th style="padding: 12px 10px;">Mevcut Durum</th>
+              <th style="padding: 12px 10px; background:#fef5e7;">Önerilen Sözleşme</th>
+              <th style="padding: 12px 10px; background:#fef5e7;">Önerilen Üretim</th>
+              <th style="padding: 12px 10px; background:#fef5e7;">Önerilen Yükleme</th>
+              <th style="padding: 12px 10px; text-align:right; background:#fef5e7;">Önerilen Tahsilat</th>
+              <th style="padding: 12px 10px; text-align: center; width: 180px;">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody id="tblYonetimProjectsBody">
+            <!-- JS populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 2. PURCHASE APPROVALS PANEL -->
+    <div class="panel hidden" id="panel-purchase-pending">
+      <h3 style="font-family:'Montserrat',sans-serif; margin-bottom:15px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Birimlerden Gelen Satın Alma Talepleri</h3>
+      <div class="table-responsive" style="overflow-x:auto;">
+        <table class="drafts-table" style="width: 100%; border-collapse: collapse; min-width: 900px;">
+          <thead>
+            <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+              <th style="padding: 12px 10px; width: 110px;">Talep No</th>
+              <th style="padding: 12px 10px;">Tarih</th>
+              <th style="padding: 12px 10px;">İstek Gönderen Birim</th>
+              <th style="padding: 12px 10px;">Ürün / Hizmet</th>
+              <th style="padding: 12px 10px; text-align:right;">Miktar</th>
+              <th style="padding: 12px 10px; text-align:right;">Birim Fiyat</th>
+              <th style="padding: 12px 10px; text-align:right; font-weight:bold;">Toplam Tutar</th>
+              <th style="padding: 12px 10px; text-align: center; width: 180px;">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody id="tblYonetimPurchaseBody">
+            <!-- JS populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="yonetim.js"></script>
+</body>
+
+</html>
