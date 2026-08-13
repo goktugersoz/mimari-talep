@@ -2398,7 +2398,391 @@
     $('panel-contracts').classList.toggle('hidden', name !== 'contracts');
     $('panel-drivers').classList.toggle('hidden', name !== 'drivers');
     $('panel-customers').classList.toggle('hidden', name !== 'customers');
+    $('panel-cari').classList.toggle('hidden', name !== 'cari');
+    if (name === 'cari') {
+      switchCariSubtab('cari-dashboard');
+      loadCariData();
+    }
   }
+
+  // ---- CARİ HESAP YÖNETİMİ PORTAL LOGIC ----
+  let cariAccounts = [];
+  let cariTransactions = [];
+  const STORAGE_KEY_CARI_ACCOUNTS = 'mimari-cari-hesaplar';
+  const STORAGE_KEY_CARI_TRANSACTIONS = 'mimari-cari-hareketler';
+
+  function switchCariSubtab(name) {
+    document.querySelectorAll('[data-cari-subtab]').forEach(t => {
+      t.classList.toggle('active', t.getAttribute('data-cari-subtab') === name);
+    });
+    $('subpanel-cari-dashboard').classList.toggle('hidden', name !== 'cari-dashboard');
+    $('subpanel-cari-kartlar').classList.toggle('hidden', name !== 'cari-kartlar');
+    $('subpanel-cari-hareketler').classList.toggle('hidden', name !== 'cari-hareketler');
+    $('subpanel-cari-islemler').classList.toggle('hidden', name !== 'cari-islemler');
+
+    if (name === 'cari-dashboard') {
+      renderCariDashboard();
+    } else if (name === 'cari-kartlar') {
+      renderCariList();
+    } else if (name === 'cari-hareketler') {
+      populateCariDropdowns();
+      filterCariLedger();
+    } else if (name === 'cari-islemler') {
+      populateCariDropdowns();
+      const today = todayISO();
+      $('inpTahsilatDate').value = today;
+      $('inpOdemeDate').value = today;
+    }
+  }
+
+  async function loadCariData() {
+    if (useSupabase) {
+      try {
+        const { data: accounts, error: err1 } = await supabase.from('cari_accounts').select('*').order('code', { ascending: true });
+        const { data: txs, error: err2 } = await supabase.from('cari_transactions').select('*').order('date', { ascending: true });
+        if (err1 || err2) throw (err1 || err2);
+
+        cariAccounts = accounts || [];
+        cariTransactions = txs || [];
+        $('muhasebeStorageWarning').textContent = '🟢 Supabase veritabanı aktif ve bağlandı. Muhasebe ve Cari kayıtlarınız bulutta güvenle saklanıyor.';
+      } catch (e) {
+        console.warn("Supabase Cari tables not found. Using local fallback.", e);
+        $('muhasebeStorageWarning').innerHTML = `⚠️ Supabase bağlantısı aktif fakat <strong>cari_accounts</strong> ve <strong>cari_transactions</strong> tabloları bulunamadı. Verileriniz bu tarayıcıda saklanacak. Bulut eşleşmesi için Supabase SQL Editor panelinizde şu SQL komutlarını çalıştırın:<br><pre style="background:#fff; padding:6px; margin:5px 0 0 0; font-family:monospace; font-size:11px; border:1px solid #ddd; overflow-x:auto; text-align:left;">create table if not exists cari_accounts (
+  id text primary key,
+  code text,
+  name text,
+  type text,
+  tax_office text,
+  tax_no text,
+  phone text,
+  email text,
+  authorized text,
+  status text,
+  address text,
+  created_at timestamptz default now()
+);
+create table if not exists cari_transactions (
+  id text primary key,
+  cari_id text,
+  type text,
+  date text,
+  amount numeric,
+  ref_no text,
+  notes text,
+  created_at timestamptz default now()
+);
+grant all privileges on table cari_accounts, cari_transactions to anon;
+grant all privileges on table cari_accounts, cari_transactions to authenticated;
+grant all privileges on table cari_accounts, cari_transactions to service_role;
+alter table cari_accounts disable row level security;
+alter table cari_transactions disable row level security;</pre>`;
+        await loadCariDataFromLocalStorage();
+      }
+    } else {
+      await loadCariDataFromLocalStorage();
+    }
+    renderCariDashboard();
+  }
+
+  async function loadCariDataFromLocalStorage() {
+    try {
+      const val1 = await getStorageItem(STORAGE_KEY_CARI_ACCOUNTS);
+      const val2 = await getStorageItem(STORAGE_KEY_CARI_TRANSACTIONS);
+      cariAccounts = val1 ? JSON.parse(val1) : [];
+      cariTransactions = val2 ? JSON.parse(val2) : [];
+    } catch (e) {
+      cariAccounts = [];
+      cariTransactions = [];
+    }
+  }
+
+  async function saveCariAccountsState() {
+    try {
+      await setStorageItem(STORAGE_KEY_CARI_ACCOUNTS, JSON.stringify(cariAccounts));
+    } catch (e) { }
+  }
+
+  async function saveCariTransactionsState() {
+    try {
+      await setStorageItem(STORAGE_KEY_CARI_TRANSACTIONS, JSON.stringify(cariTransactions));
+    } catch (e) { }
+  }
+
+  function suggestNextCariCode(type) {
+    const prefix = type === 'MÜŞTERİ' ? 'M' : 'T';
+    let maxNum = 0;
+    cariAccounts.forEach(c => {
+      const regex = new RegExp(`^${prefix}-(\\d{5})$`);
+      const match = regex.exec(c.code);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    });
+    return `${prefix}-${String(maxNum + 1).padStart(5, '0')}`;
+  }
+
+  function calculateCariBalance(cariId) {
+    let balance = 0;
+    cariTransactions.filter(t => t.cari_id === cariId).forEach(t => {
+      const amt = parseFloat(t.amount || 0);
+      if (t.type === 'BORÇ' || t.type === 'ÖDEME') {
+        balance += amt;
+      } else if (t.type === 'ALACAK' || t.type === 'TAHSİLAT') {
+        balance -= amt;
+      }
+    });
+    return balance;
+  }
+
+  function renderCariList() {
+    const tbody = $('cariListTable');
+    if (!tbody) return;
+
+    const q = ($('inpCariSearch').value || '').trim().toLowerCase();
+    const filtered = cariAccounts.filter(c => {
+      if (!q) return true;
+      return (c.name || '').toLowerCase().includes(q) ||
+             (c.code || '').toLowerCase().includes(q) ||
+             (c.tax_no || '').includes(q) ||
+             (c.phone || '').includes(q);
+    });
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--ink-soft);">Aradığınız kriterlere uygun cari hesap bulunamadı.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(c => {
+      const bal = calculateCariBalance(c.id);
+      const balStr = bal.toFixed(2) + ' TL';
+      const balColor = bal > 0 ? 'var(--success)' : (bal < 0 ? 'var(--accent-dark)' : 'var(--ink)');
+      
+      const typeBadge = c.type === 'MÜŞTERİ' 
+        ? `<span class="badge-status musteri">Müşteri</span>` 
+        : (c.type === 'TEDARİKÇİ' ? `<span class="badge-status tedarikci">Tedarikçi</span>` : `<span class="badge-status her-ikisi">Müşteri/Tedarikçi</span>`);
+      
+      const statusBadge = c.status === 'AKTİF' 
+        ? `<span class="badge-status aktif">Aktif</span>` 
+        : `<span class="badge-status pasif">Pasif</span>`;
+
+      return `<tr>
+        <td style="font-family:monospace; font-weight:bold;">${esc(c.code)}</td>
+        <td style="font-weight:700;">${esc(c.name)}</td>
+        <td>${typeBadge}</td>
+        <td>${esc(c.phone || '—')}</td>
+        <td>${esc(c.tax_no || '—')}</td>
+        <td style="text-align:right; font-weight:bold; color:${balColor};">${balStr}</td>
+        <td>${statusBadge}</td>
+        <td style="text-align:center;">
+          <button class="btn-submit" style="padding:4px 8px; font-size:11px; margin:0; width:auto; height:auto;" onclick="selectCariForLedger('${c.id}')">Ekstre 📊</button>
+          <button class="personnel-del" style="float:none; margin-left:6px;" onclick="deleteCariCard('${c.id}')">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function deleteCariCard(id) {
+    if (!confirm('Bu cari hesabı ve tüm hareket geçmişini silmek istediğinize emin misiniz?')) return;
+    if (useSupabase) {
+      try {
+        await supabase.from('cari_transactions').delete().eq('cari_id', id);
+        await supabase.from('cari_accounts').delete().eq('id', id);
+      } catch (e) { }
+    }
+    cariAccounts = cariAccounts.filter(c => c.id !== id);
+    cariTransactions = cariTransactions.filter(t => t.cari_id !== id);
+    await saveCariAccountsState();
+    await saveCariTransactionsState();
+    showToast('Cari hesap silindi.');
+    renderCariList();
+    renderCariDashboard();
+  }
+
+  function populateCariDropdowns() {
+    const list = cariAccounts.filter(c => c.status === 'AKTİF');
+    const options = list.map(c => `<option value="${c.id}">${esc(c.code)} - ${esc(c.name)}</option>`).join('');
+    const emptyOpt = '<option value="">— Cari Seçin —</option>';
+    
+    $('selCariFilter').innerHTML = emptyOpt + options;
+    $('selCariTahsilat').innerHTML = emptyOpt + options;
+    $('selCariOdeme').innerHTML = emptyOpt + options;
+  }
+
+  function filterCariLedger() {
+    const cariId = $('selCariFilter').value;
+    const body = $('ekstreLedgerBody');
+    if (!body) return;
+
+    if (!cariId) {
+      $('ekstreTitleName').textContent = 'Lütfen Cari Seçin';
+      $('ekstreTitleDetails').textContent = 'Kod: — · VKN: — · Tel: —';
+      $('ekstreDateRange').textContent = 'Tarih Aralığı: —';
+      body.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--ink-soft);">Lütfen hareketlerini görmek istediğiniz cari hesabı seçin.</td></tr>`;
+      $('lblEkstreOpeningBalance').textContent = '0.00 TL';
+      $('lblEkstrePeriodDebt').textContent = '0.00 TL';
+      $('lblEkstrePeriodCredit').textContent = '0.00 TL';
+      $('lblEkstreTotalBalance').textContent = '0.00 TL';
+      return;
+    }
+
+    const cari = cariAccounts.find(c => c.id === cariId);
+    if (!cari) return;
+
+    $('ekstreTitleName').textContent = cari.name;
+    $('ekstreTitleDetails').textContent = `Kod: ${cari.code} · VKN: ${cari.tax_no || '—'} · Tel: ${cari.phone || '—'} · Yetkili: ${cari.authorized || '—'}`;
+
+    const startDateVal = $('inpCariFilterStart').value;
+    const endDateVal = $('inpCariFilterEnd').value;
+
+    let dateRangeStr = 'Tüm Hareketler';
+    if (startDateVal && endDateVal) {
+      dateRangeStr = `${fmtDate(startDateVal)} - ${fmtDate(endDateVal)}`;
+    } else if (startDateVal) {
+      dateRangeStr = `${fmtDate(startDateVal)} sonrasındaki hareketler`;
+    } else if (endDateVal) {
+      dateRangeStr = `${fmtDate(endDateVal)} öncesindeki hareketler`;
+    }
+    $('ekstreDateRange').textContent = dateRangeStr;
+
+    const txs = cariTransactions.filter(t => t.cari_id === cariId).sort((a, b) => a.date.localeCompare(b.date));
+
+    let openingBalance = 0;
+    let periodDebt = 0;
+    let periodCredit = 0;
+    let runningBalance = 0;
+
+    const filteredTxs = [];
+
+    txs.forEach(t => {
+      const amt = parseFloat(t.amount || 0);
+      const isBeforeStart = startDateVal && t.date < startDateVal;
+      const isAfterEnd = endDateVal && t.date > endDateVal;
+
+      if (isBeforeStart) {
+        if (t.type === 'BORÇ' || t.type === 'ÖDEME') openingBalance += amt;
+        else if (t.type === 'ALACAK' || t.type === 'TAHSİLAT') openingBalance -= amt;
+      } else if (!isAfterEnd) {
+        filteredTxs.push(t);
+      }
+    });
+
+    runningBalance = openingBalance;
+    $('lblEkstreOpeningBalance').textContent = openingBalance.toFixed(2) + ' TL';
+
+    if (filteredTxs.length === 0) {
+      body.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:var(--ink-soft);">Belirtilen tarih aralığında hareket bulunmamaktadır.</td></tr>`;
+    } else {
+      body.innerHTML = filteredTxs.map(t => {
+        const amt = parseFloat(t.amount || 0);
+        let borc = '—';
+        let alacak = '—';
+        
+        if (t.type === 'BORÇ' || t.type === 'ÖDEME') {
+          borc = amt.toFixed(2) + ' TL';
+          runningBalance += amt;
+          periodDebt += amt;
+        } else {
+          alacak = amt.toFixed(2) + ' TL';
+          runningBalance -= amt;
+          periodCredit += amt;
+        }
+
+        return `<tr>
+          <td>${fmtDate(t.date)}</td>
+          <td style="font-weight:bold;">${esc(t.type)}</td>
+          <td>${esc(t.ref_no || '—')}</td>
+          <td>${esc(t.notes || '—')}</td>
+          <td style="text-align:right; color:var(--accent-dark);">${borc}</td>
+          <td style="text-align:right; color:#2ecc71;">${alacak}</td>
+          <td style="text-align:right; font-weight:bold; color:${runningBalance > 0 ? 'var(--success)' : (runningBalance < 0 ? 'var(--accent-dark)' : 'var(--ink)')};">${runningBalance.toFixed(2)} TL</td>
+          <td style="text-align:center;" class="no-print">
+            <button class="personnel-del" style="float:none;" onclick="deleteCariTransaction('${t.id}')">✕</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    $('lblEkstrePeriodDebt').textContent = periodDebt.toFixed(2) + ' TL';
+    $('lblEkstrePeriodCredit').textContent = periodCredit.toFixed(2) + ' TL';
+    $('lblEkstreTotalBalance').textContent = runningBalance.toFixed(2) + ' TL';
+  }
+
+  async function deleteCariTransaction(id) {
+    if (!confirm('Bu finansal işlemi silmek istediğinize emin misiniz? Bakiye yeniden hesaplanacaktır.')) return;
+    if (useSupabase) {
+      try {
+        await supabase.from('cari_transactions').delete().eq('id', id);
+      } catch (e) { }
+    }
+    cariTransactions = cariTransactions.filter(t => t.id !== id);
+    await saveCariTransactionsState();
+    showToast('İşlem silindi.');
+    filterCariLedger();
+    renderCariDashboard();
+  }
+
+  function renderCariDashboard() {
+    const grid = $('cariStatsGrid');
+    if (!grid) return;
+
+    const totalCaris = cariAccounts.length;
+    const customers = cariAccounts.filter(c => c.type === 'MÜŞTERİ' || c.type === 'HER_İKİSİ').length;
+    const suppliers = cariAccounts.filter(c => c.type === 'TEDARİKÇİ' || c.type === 'HER_İKİSİ').length;
+
+    let totalReceivables = 0; 
+    let totalDebt = 0;        
+
+    const cariBalances = cariAccounts.map(c => {
+      const bal = calculateCariBalance(c.id);
+      if (bal > 0) totalReceivables += bal;
+      else if (bal < 0) totalDebt += Math.abs(bal);
+      return { id: c.id, name: c.name, balance: bal };
+    });
+
+    grid.innerHTML = `
+      <div class="stat-card">
+        <h4>Toplam Cari Kart</h4>
+        <div class="val">${totalCaris}</div>
+      </div>
+      <div class="stat-card">
+        <h4>Toplam Müşteri</h4>
+        <div class="val" style="color:var(--success);">${customers}</div>
+      </div>
+      <div class="stat-card">
+        <h4>Toplam Tedarikçi</h4>
+        <div class="val" style="color:var(--accent-dark);">${suppliers}</div>
+      </div>
+      <div class="stat-card">
+        <h4>Toplam Alacağımız (Müşteri)</h4>
+        <div class="val" style="color:var(--success);">${totalReceivables.toFixed(2)} TL</div>
+      </div>
+      <div class="stat-card">
+        <h4>Toplam Borcumuz (Tedarikçi)</h4>
+        <div class="val" style="color:var(--accent-dark);">${totalDebt.toFixed(2)} TL</div>
+      </div>
+    `;
+
+    const creditors = [...cariBalances].filter(c => c.balance > 0).sort((a, b) => b.balance - a.balance).slice(0, 5);
+    const debtors = [...cariBalances].filter(c => c.balance < 0).sort((a, b) => a.balance - b.balance).slice(0, 5);
+
+    $('tblTopCreditors').innerHTML = creditors.length === 0
+      ? `<tr><td style="color:var(--ink-soft); text-align:center; padding:10px;">Alacak kaydı bulunmuyor.</td></tr>`
+      : creditors.map(c => `<tr><td style="padding:6px 4px; font-weight:700;">${esc(c.name)}</td><td style="padding:6px 4px; text-align:right; font-weight:bold; color:var(--success);">${c.balance.toFixed(2)} TL</td></tr>`).join('');
+
+    $('tblTopDebtors').innerHTML = debtors.length === 0
+      ? `<tr><td style="color:var(--ink-soft); text-align:center; padding:10px;">Borç kaydı bulunmuyor.</td></tr>`
+      : debtors.map(c => `<tr><td style="padding:6px 4px; font-weight:700;">${esc(c.name)}</td><td style="padding:6px 4px; text-align:right; font-weight:bold; color:var(--accent-dark);">${Math.abs(c.balance).toFixed(2)} TL</td></tr>`).join('');
+  }
+
+  window.selectCariForLedger = function(id) {
+    switchCariSubtab('cari-hareketler');
+    $('selCariFilter').value = id;
+    filterCariLedger();
+  };
+
+  window.deleteCariTransaction = deleteCariTransaction;
+  window.deleteCariCard = deleteCariCard;
 
   async function loadAccountingRecords() {
     if (useSupabase) {
@@ -2770,6 +3154,169 @@ alter table accounting_records disable row level security;</pre>`;
     attachedContractFile = null;
     $('contractFileStatus').textContent = '';
     $('btnRemoveContractFile').classList.add('hidden');
+  });
+
+  // Cari Hesaplar Event Bindings
+  $('btnShowNewCariForm').addEventListener('click', () => {
+    $('blockNewCariForm').classList.toggle('hidden');
+    $('inpCariCode').value = suggestNextCariCode($('selCariType').value);
+  });
+  
+  $('selCariType').addEventListener('change', () => {
+    $('inpCariCode').value = suggestNextCariCode($('selCariType').value);
+  });
+
+  $('btnCancelCariForm').addEventListener('click', () => {
+    $('blockNewCariForm').classList.add('hidden');
+    $('inpCariName').value = '';
+    $('inpCariTaxOffice').value = '';
+    $('inpCariTaxNo').value = '';
+    $('inpCariPhone').value = '';
+    $('inpCariEmail').value = '';
+    $('inpCariAuthorized').value = '';
+    $('inpCariAddress').value = '';
+  });
+
+  $('btnSaveCariCard').addEventListener('click', async () => {
+    const code = $('inpCariCode').value;
+    const name = $('inpCariName').value.trim();
+    const type = $('selCariType').value;
+    const taxOffice = $('inpCariTaxOffice').value.trim();
+    const taxNo = $('inpCariTaxNo').value.trim();
+    const phone = $('inpCariPhone').value.trim();
+    const email = $('inpCariEmail').value.trim();
+    const authorized = $('inpCariAuthorized').value.trim();
+    const status = $('selCariStatus').value;
+    const address = $('inpCariAddress').value.trim();
+
+    if (!name) {
+      showToast('Cari Ünvanı zorunludur.', true);
+      return;
+    }
+
+    const newCari = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      code,
+      name,
+      type,
+      tax_office: taxOffice,
+      tax_no: taxNo,
+      phone,
+      email,
+      authorized,
+      status,
+      address,
+      created_at: new Date().toISOString()
+    };
+
+    if (useSupabase) {
+      try {
+        const { error } = await supabase.from('cari_accounts').insert(newCari);
+        if (error) throw error;
+      } catch (e) {
+        console.error("Supabase insert failed. Using LocalStorage fallback.", e);
+      }
+    }
+
+    cariAccounts.push(newCari);
+    await saveCariAccountsState();
+    
+    showToast('Cari Kart oluşturuldu.');
+    $('btnCancelCariForm').click();
+    renderCariList();
+    renderCariDashboard();
+  });
+
+  $('btnSaveTahsilat').addEventListener('click', async () => {
+    const cariId = $('selCariTahsilat').value;
+    const date = $('inpTahsilatDate').value;
+    const amount = parseFloat($('inpTahsilatAmount').value);
+    const ref = $('inpTahsilatRef').value.trim();
+    const notes = $('inpTahsilatNotes').value.trim();
+
+    if (!cariId || !date || isNaN(amount) || amount <= 0) {
+      showToast('Lütfen alanları eksiksiz ve geçerli doldurun.', true);
+      return;
+    }
+
+    const tx = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      cari_id: cariId,
+      type: 'TAHSİLAT',
+      date,
+      amount,
+      ref_no: ref,
+      notes: notes || 'Tahsilat kaydı',
+      created_at: new Date().toISOString()
+    };
+
+    if (useSupabase) {
+      try {
+        const { error } = await supabase.from('cari_transactions').insert(tx);
+        if (error) throw error;
+      } catch (e) { }
+    }
+
+    cariTransactions.push(tx);
+    await saveCariTransactionsState();
+    showToast('Tahsilat işlemi kaydedildi.');
+    
+    $('inpTahsilatAmount').value = '';
+    $('inpTahsilatRef').value = '';
+    $('inpTahsilatNotes').value = '';
+    renderCariDashboard();
+  });
+
+  $('btnSaveOdeme').addEventListener('click', async () => {
+    const cariId = $('selCariOdeme').value;
+    const type = $('selOdemeType').value;
+    const date = $('inpOdemeDate').value;
+    const amount = parseFloat($('inpOdemeAmount').value);
+    const ref = $('inpOdemeRef').value.trim();
+    const notes = $('inpOdemeNotes').value.trim();
+
+    if (!cariId || !date || isNaN(amount) || amount <= 0) {
+      showToast('Lütfen alanları eksiksiz ve geçerli doldurun.', true);
+      return;
+    }
+
+    const tx = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      cari_id: cariId,
+      type,
+      date,
+      amount,
+      ref_no: ref,
+      notes: notes || `${type} kaydı`,
+      created_at: new Date().toISOString()
+    };
+
+    if (useSupabase) {
+      try {
+        const { error } = await supabase.from('cari_transactions').insert(tx);
+        if (error) throw error;
+      } catch (e) { }
+    }
+
+    cariTransactions.push(tx);
+    await saveCariTransactionsState();
+    showToast('Finansal işlem kaydedildi.');
+    
+    $('inpOdemeAmount').value = '';
+    $('inpOdemeRef').value = '';
+    $('inpOdemeNotes').value = '';
+    renderCariDashboard();
+  });
+
+  $('btnPrintEkstre').addEventListener('click', () => {
+    window.print();
+  });
+
+  $('btnFilterCariLedger').addEventListener('click', filterCariLedger);
+  $('inpCariSearch').addEventListener('input', renderCariList);
+
+  document.querySelectorAll('[data-cari-subtab]').forEach(t => {
+    t.addEventListener('click', () => switchCariSubtab(t.getAttribute('data-cari-subtab')));
   });
 
 

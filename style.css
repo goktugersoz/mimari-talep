@@ -1119,3 +1119,78 @@
 .grid.list-view .card-file-item span {
   display: block !important;
 }
+
+/* CARI HESAP YÖNETİMİ CUSTOM STYLES */
+.cari-subpanel {
+  display: block;
+}
+.cari-subpanel.hidden {
+  display: none;
+}
+.badge-status {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+  display: inline-block;
+}
+.badge-status.aktif {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+}
+.badge-status.pasif {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+}
+.badge-status.musteri {
+  background: #e3f2fd;
+  color: #1565c0;
+  border: 1px solid #bbdefb;
+}
+.badge-status.tedarikci {
+  background: #fff8e1;
+  color: #f57f17;
+  border: 1px solid #ffe082;
+}
+.badge-status.her-ikisi {
+  background: #f3e5f5;
+  color: #6a1b9a;
+  border: 1px solid #e1bee7;
+}
+
+/* Printable Statement Layout */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #muhasebeContainer, #panel-cari, #ekstrePreview, #ekstrePreview * {
+    visibility: visible;
+  }
+  body, html {
+    background: #fff !important;
+  }
+  #muhasebeContainer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  #panel-cari {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  .tabs, .toolbar, header, .no-print {
+    display: none !important;
+  }
+  #ekstrePreview {
+    border: none !important;
+    padding: 0 !important;
+    margin-top: 0 !important;
+  }
+}
+
