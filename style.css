@@ -1209,4 +1209,17 @@
   transform: rotate(90deg);
 }
 
+/* DOVIZ & KUR FARKI BADGES */
+.doviz-gain {
+  background: #e8f5e9 !important;
+  color: #2e7d32 !important;
+  border: 1px solid #c8e6c9 !important;
+}
+.doviz-loss {
+  background: #ffebee !important;
+  color: #c62828 !important;
+  border: 1px solid #ffcdd2 !important;
+}
+
+
 

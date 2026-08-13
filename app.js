@@ -2400,11 +2400,14 @@
     $('panel-customers').classList.toggle('hidden', name !== 'customers');
     $('panel-cari').classList.toggle('hidden', name !== 'cari');
     $('panel-fatura').classList.toggle('hidden', name !== 'fatura');
+    $('panel-doviz').classList.toggle('hidden', name !== 'doviz');
     if (name === 'cari') {
       switchCariSubtab('cari-dashboard');
       loadCariData();
     } else if (name === 'fatura') {
       loadFaturaData();
+    } else if (name === 'doviz') {
+      loadDovizData();
     }
   }
 
@@ -3598,6 +3601,325 @@ alter table accounting_records disable row level security;</pre>`;
     showToast('Fatura başarıyla kaydedildi.');
     $('btnCancelFaturaForm').click();
     renderInvoices();
+  });
+
+  // ---- DÖVİZ TAKİBİ & KUR FARKI LOGIC ----
+  let liveRates = {
+    USD: { buying: 34.2500, selling: 34.3500 },
+    EUR: { buying: 37.5200, selling: 37.6400 },
+    GBP: { buying: 43.8500, selling: 43.9900 }
+  };
+  let exchangeDiffRecords = [];
+  const STORAGE_KEY_EXCHANGE_DIFF = 'mimari-kur-farki-kayitlari';
+
+  async function fetchTcmbRates() {
+    const btn = $('btnUpdateTcmbRates');
+    btn.disabled = true;
+    btn.textContent = 'Güncelleniyor...';
+    
+    const proxyUrl = 'https://api.allorigins.win/raw?url=https://www.tcmb.gov.tr/kurlar/today.xml';
+    try {
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error('CORS Proxy HTTP error ' + res.status);
+      const xmlText = await res.text();
+      
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+      const currencies = xmlDoc.getElementsByTagName("Currency");
+      
+      let foundCount = 0;
+      for (let i = 0; i < currencies.length; i++) {
+        const item = currencies[i];
+        const code = item.getAttribute("CurrencyCode");
+        
+        if (code === "USD" || code === "EUR" || code === "GBP") {
+          const buying = parseFloat(item.getElementsByTagName("ForexBuying")[0]?.textContent || 0);
+          const selling = parseFloat(item.getElementsByTagName("ForexSelling")[0]?.textContent || 0);
+          if (buying > 0 && selling > 0) {
+            liveRates[code] = { buying, selling };
+            foundCount++;
+          }
+        }
+      }
+      
+      if (foundCount > 0) {
+        showToast('TCMB döviz kurları başarıyla güncellendi.');
+      } else {
+        throw new Error('Döviz kurları XML içinde bulunamadı.');
+      }
+    } catch (err) {
+      console.warn("TCMB rates fetch failed, using fallback:", err);
+      showToast('Kurlar TCMB\'den çekilemedi, sistem kurları varsayılan değerlerde tutuldu.', true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Kurları Güncelle ↻';
+      renderRatesUI();
+      updateCalculatorCurrentRate();
+    }
+  }
+
+  function renderRatesUI() {
+    $('valDovizUsdBuying').textContent = liveRates.USD.buying.toFixed(4) + ' TL';
+    $('valDovizUsdSelling').textContent = liveRates.USD.selling.toFixed(4) + ' TL';
+    $('valDovizEurBuying').textContent = liveRates.EUR.buying.toFixed(4) + ' TL';
+    $('valDovizEurSelling').textContent = liveRates.EUR.selling.toFixed(4) + ' TL';
+    $('valDovizGbpBuying').textContent = liveRates.GBP.buying.toFixed(4) + ' TL';
+    $('valDovizGbpSelling').textContent = liveRates.GBP.selling.toFixed(4) + ' TL';
+  }
+
+  function updateCalculatorCurrentRate() {
+    const currency = $('selDovizCurrency').value;
+    if (liveRates[currency]) {
+      $('inpDovizRateCurrent').value = liveRates[currency].buying.toFixed(4);
+    }
+    calculateExchangeDiff();
+  }
+
+  function calculateExchangeDiff() {
+    const cariId = $('selDovizCari').value;
+    const amount = parseFloat($('inpDovizAmount').value || 0);
+    const invoiceRate = parseFloat($('inpDovizRateInvoice').value || 0);
+    const currentRate = parseFloat($('inpDovizRateCurrent').value || 0);
+
+    const valInvoiceTL = amount * invoiceRate;
+    const valCurrentTL = amount * currentRate;
+    const diffTL = valCurrentTL - valInvoiceTL;
+
+    $('lblValDovizInvoiceTL').textContent = valInvoiceTL.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
+    $('lblValDovizCurrentTL').textContent = valCurrentTL.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
+    
+    const diffEl = $('lblValDovizDiffTL');
+    const badge = $('lblValDovizStatusBadge');
+    
+    const prefix = diffTL >= 0 ? '+' : '';
+    diffEl.textContent = prefix + diffTL.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' TL';
+    
+    if (amount === 0 || invoiceRate === 0 || currentRate === 0) {
+      diffEl.style.color = 'var(--ink)';
+      badge.style.display = 'none';
+      return;
+    }
+
+    const cari = cariAccounts.find(c => c.id === cariId);
+    const isSupplier = cari && cari.type === 'TEDARİKÇİ';
+
+    let isGain = diffTL >= 0;
+    if (isSupplier) {
+      isGain = diffTL <= 0;
+    }
+
+    if (diffTL === 0) {
+      diffEl.style.color = 'var(--ink)';
+      badge.textContent = 'Kur Farkı Yok';
+      badge.className = 'badge-status';
+      badge.style.display = 'block';
+      badge.style.background = '#f1f3f5';
+      badge.style.color = '#495057';
+    } else if (isGain) {
+      diffEl.style.color = '#2e7d32';
+      badge.textContent = 'Kur Farkı Geliri (Kâr)';
+      badge.className = 'doviz-gain';
+      badge.style.display = 'block';
+    } else {
+      diffEl.style.color = '#c62828';
+      badge.textContent = 'Kur Farkı Gideri (Zarar)';
+      badge.className = 'doviz-loss';
+      badge.style.display = 'block';
+    }
+  }
+
+  async function loadDovizData() {
+    if (cariAccounts.length === 0) {
+      await loadCariData();
+    }
+    
+    const list = cariAccounts.filter(c => c.status === 'AKTİF');
+    $('selDovizCari').innerHTML = '<option value="">— Cari Seçin —</option>' + 
+      list.map(c => `<option value="${c.id}">${esc(c.code)} - ${esc(c.name)}</option>`).join('');
+
+    if (useSupabase) {
+      try {
+        const { data, error } = await supabase.from('exchange_diff_records').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        exchangeDiffRecords = (data || []).map(r => ({
+          id: r.id,
+          cariId: r.cari_id,
+          currency: r.currency,
+          amount: parseFloat(r.amount || 0),
+          rateInvoice: parseFloat(r.rate_invoice || 0),
+          rateCurrent: parseFloat(r.rate_current || 0),
+          diffAmount: parseFloat(r.diff_amount || 0),
+          notes: r.notes,
+          createdAt: r.created_at
+        }));
+      } catch (e) {
+        console.warn("Supabase exchange_diff_records table not found. Using local fallback.", e);
+        await loadDovizFromLocalStorage();
+      }
+    } else {
+      await loadDovizFromLocalStorage();
+    }
+
+    await fetchTcmbRates();
+    renderExchangeDiffHistory();
+  }
+
+  async function loadDovizFromLocalStorage() {
+    try {
+      const val = await getStorageItem(STORAGE_KEY_EXCHANGE_DIFF);
+      exchangeDiffRecords = val ? JSON.parse(val) : [];
+    } catch (e) {
+      exchangeDiffRecords = [];
+    }
+  }
+
+  async function saveExchangeDiffRecord(record) {
+    if (useSupabase) {
+      try {
+        const { error } = await supabase.from('exchange_diff_records').insert({
+          id: record.id,
+          cari_id: record.cariId,
+          currency: record.currency,
+          amount: record.amount,
+          rate_invoice: record.rateInvoice,
+          rate_current: record.rateCurrent,
+          diff_amount: record.diffAmount,
+          notes: record.notes,
+          created_at: record.createdAt
+        });
+        if (!error) return true;
+      } catch (e) { }
+    }
+    exchangeDiffRecords.push(record);
+    await saveDovizToLocalStorage();
+    return true;
+  }
+
+  async function saveDovizToLocalStorage() {
+    try {
+      await setStorageItem(STORAGE_KEY_EXCHANGE_DIFF, JSON.stringify(exchangeDiffRecords));
+    } catch (e) { }
+  }
+
+  function renderExchangeDiffHistory() {
+    const tbody = $('tblExchangeDiffHistory');
+    if (!tbody) return;
+
+    if (exchangeDiffRecords.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--ink-soft);">Kayıtlı kur farkı hareketi bulunmamaktadır.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = exchangeDiffRecords.map(r => {
+      const cari = cariAccounts.find(c => c.id === r.cariId);
+      const name = cari ? cari.name : 'Belirtilmemiş Cari';
+      const diffColor = r.diffAmount > 0 ? 'var(--success)' : (r.diffAmount < 0 ? 'var(--accent-dark)' : 'var(--ink)');
+      const prefix = r.diffAmount >= 0 ? '+' : '';
+
+      return `<tr>
+        <td style="font-weight:700;">${esc(name)}</td>
+        <td style="font-family:'JetBrains Mono',monospace;">${r.amount.toFixed(2)} ${esc(r.currency)}</td>
+        <td style="text-align:right; font-family:'JetBrains Mono',monospace;">${r.rateInvoice.toFixed(4)}</td>
+        <td style="text-align:right; font-family:'JetBrains Mono',monospace;">${r.rateCurrent.toFixed(4)}</td>
+        <td style="text-align:right; font-weight:bold; color:${diffColor}; font-family:'JetBrains Mono',monospace;">${prefix}${r.diffAmount.toFixed(2)} TL</td>
+        <td>${esc(r.notes || '—')}</td>
+        <td style="text-align:center;">
+          <button class="personnel-del" style="float:none;" onclick="deleteExchangeDiffRecord('${r.id}')">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function deleteExchangeDiffRecord(id) {
+    if (!confirm('Bu kur farkı kaydını silmek istediğinize emin misiniz?')) return;
+    
+    if (useSupabase) {
+      try {
+        await supabase.from('exchange_diff_records').delete().eq('id', id);
+      } catch (e) { }
+    }
+
+    exchangeDiffRecords = exchangeDiffRecords.filter(r => r.id !== id);
+    await saveDovizToLocalStorage();
+    showToast('Kayıt silindi.');
+    renderExchangeDiffHistory();
+  }
+
+  window.deleteExchangeDiffRecord = deleteExchangeDiffRecord;
+
+  // Doviz Calculator triggers
+  $('btnUpdateTcmbRates').addEventListener('click', fetchTcmbRates);
+  $('selDovizCurrency').addEventListener('change', updateCalculatorCurrentRate);
+  $('selDovizCari').addEventListener('change', calculateExchangeDiff);
+  
+  ['inpDovizAmount', 'inpDovizRateInvoice', 'inpDovizRateCurrent'].forEach(id => {
+    $(id).addEventListener('input', calculateExchangeDiff);
+  });
+
+  $('btnSaveExchangeDiff').addEventListener('click', async () => {
+    const cariId = $('selDovizCari').value;
+    const currency = $('selDovizCurrency').value;
+    const amount = parseFloat($('inpDovizAmount').value || 0);
+    const rateInvoice = parseFloat($('inpDovizRateInvoice').value || 0);
+    const rateCurrent = parseFloat($('inpDovizRateCurrent').value || 0);
+    const notes = $('inpDovizNotes').value.trim();
+
+    if (!cariId || amount <= 0 || rateInvoice <= 0 || rateCurrent <= 0) {
+      showToast('Lütfen alanları eksiksiz ve geçerli doldurun.', true);
+      return;
+    }
+
+    const valInvoiceTL = amount * rateInvoice;
+    const valCurrentTL = amount * rateCurrent;
+    const diffAmount = valCurrentTL - valInvoiceTL;
+
+    const record = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      cariId,
+      currency,
+      amount,
+      rateInvoice,
+      rateCurrent,
+      diffAmount,
+      notes: notes || `${currency} kur farkı değerleme kaydı`,
+      createdAt: new Date().toISOString()
+    };
+
+    await saveExchangeDiffRecord(record);
+    
+    const cari = cariAccounts.find(c => c.id === cariId);
+    const isSupplier = cari && cari.type === 'TEDARİKÇİ';
+    
+    let txType = 'BORÇ';
+    let txAmount = Math.abs(diffAmount);
+    
+    if (diffAmount >= 0) {
+      txType = isSupplier ? 'ALACAK' : 'BORÇ';
+    } else {
+      txType = isSupplier ? 'BORÇ' : 'ALACAK';
+    }
+
+    const tx = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      cari_id: cariId,
+      type: txType,
+      date: todayISO(),
+      amount: txAmount,
+      ref_no: 'KUR-FARKI',
+      notes: `${currency} Değerleme fark kaydı (${rateInvoice} -> ${rateCurrent})`,
+      created_at: new Date().toISOString()
+    };
+
+    await saveAccountingRecord(tx);
+
+    showToast('Kur farkı kaydı başarıyla işlendi ve Cari Deftere aktarıldı.');
+    
+    $('inpDovizAmount').value = '';
+    $('inpDovizRateInvoice').value = '';
+    $('inpDovizNotes').value = '';
+    
+    calculateExchangeDiff();
+    renderExchangeDiffHistory();
   });
 
 

@@ -409,6 +409,7 @@ comment on table draft_projects is 'Draft Projects Table';</pre>
       <div class="tab" data-muhasebe-tab="customers">MÜŞTERİ BİLGİLERİ</div>
       <div class="tab" data-muhasebe-tab="cari">CARİ HESAPLAR</div>
       <div class="tab" data-muhasebe-tab="fatura">FATURA YÖNETİMİ</div>
+      <div class="tab" data-muhasebe-tab="doviz">DÖVİZ & KUR FARKI</div>
     </div>
 
     <!-- CONTRACTS PANEL -->
@@ -953,6 +954,121 @@ comment on table draft_projects is 'Draft Projects Table';</pre>
             </table>
           </div>
         </main>
+      </div>
+    </div>
+
+    <!-- DOVIZ PANEL -->
+    <div class="panel hidden" id="panel-doviz">
+      <!-- Live rates cards -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; flex-wrap:wrap; gap:10px;">
+        <h3 style="font-family:'Montserrat',sans-serif; margin:0;">TCMB Güncel Döviz Kurları (Saat Başı)</h3>
+        <button class="btn-submit" id="btnUpdateTcmbRates" style="width:auto; margin:0; height:auto; padding:8px 15px; background:var(--accent);">Kurları Güncelle ↻</button>
+      </div>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px;">
+        <div class="panel" style="min-height: auto; padding: 15px; border: 1px solid var(--line); text-align:center; box-shadow:none;">
+          <h4 style="margin:0 0 8px 0; color:var(--ink-soft);">ABD DOLARI (USD)</h4>
+          <div style="font-size: 24px; font-weight:bold; font-family:'JetBrains Mono',monospace; color:var(--ink);" id="valDovizUsdBuying">0.0000 TL</div>
+          <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Satış: <span id="valDovizUsdSelling">0.0000 TL</span></div>
+        </div>
+        <div class="panel" style="min-height: auto; padding: 15px; border: 1px solid var(--line); text-align:center; box-shadow:none;">
+          <h4 style="margin:0 0 8px 0; color:var(--ink-soft);">EURO (EUR)</h4>
+          <div style="font-size: 24px; font-weight:bold; font-family:'JetBrains Mono',monospace; color:var(--ink);" id="valDovizEurBuying">0.0000 TL</div>
+          <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Satış: <span id="valDovizEurSelling">0.0000 TL</span></div>
+        </div>
+        <div class="panel" style="min-height: auto; padding: 15px; border: 1px solid var(--line); text-align:center; box-shadow:none;">
+          <h4 style="margin:0 0 8px 0; color:var(--ink-soft);">İNGİLİZ STERLİNİ (GBP)</h4>
+          <div style="font-size: 24px; font-weight:bold; font-family:'JetBrains Mono',monospace; color:var(--ink);" id="valDovizGbpBuying">0.0000 TL</div>
+          <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Satış: <span id="valDovizGbpSelling">0.0000 TL</span></div>
+        </div>
+      </div>
+
+      <!-- Kur Farki Calculator -->
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        <!-- Calculator Form -->
+        <div class="titleblock" style="margin:0; max-width:100%;">
+          <div class="tb-top"><span>KUR FARKI HESAPLAYICI</span></div>
+          <div class="tb-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="cell full">
+              <label>Cari Hesap Seçin</label>
+              <div class="select-wrap">
+                <select id="selDovizCari"></select>
+              </div>
+            </div>
+            <div class="cell">
+              <label>Döviz Cinsi</label>
+              <div class="select-wrap">
+                <select id="selDovizCurrency">
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                </select>
+              </div>
+            </div>
+            <div class="cell">
+              <label>Döviz Tutarı</label>
+              <input type="number" step="0.01" id="inpDovizAmount" placeholder="0.00">
+            </div>
+            <div class="cell">
+              <label>Fatura / İşlem Kuru</label>
+              <input type="number" step="0.0001" id="inpDovizRateInvoice" placeholder="0.0000">
+            </div>
+            <div class="cell">
+              <label>Güncel Kur (Saat Başı)</label>
+              <input type="number" step="0.0001" id="inpDovizRateCurrent" placeholder="0.0000">
+            </div>
+            <div class="cell full">
+              <label>Açıklama (Opsiyonel)</label>
+              <input type="text" id="inpDovizNotes" placeholder="örn. Kur farkı değerleme kaydı">
+            </div>
+          </div>
+          <div class="tb-actions" style="justify-content: flex-end; padding-top: 10px;">
+            <button class="btn-submit" id="btnSaveExchangeDiff" style="width:100%;">Kur Farkı Kaydını İşle</button>
+          </div>
+        </div>
+
+        <!-- Real-time computation details -->
+        <div class="panel" style="min-height: auto; padding: 20px; border: 1px solid var(--line); display:flex; flex-direction:column; justify-content:center; box-shadow:none;">
+          <h4 style="margin-top:0; font-family:'Montserrat',sans-serif;">Değerleme Özeti</h4>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div style="display:flex; justify-content:space-between; border-bottom: 1px dashed var(--line); padding-bottom:8px;">
+              <span>İşlem Tarihi TL Değeri:</span>
+              <strong id="lblValDovizInvoiceTL">0.00 TL</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between; border-bottom: 1px dashed var(--line); padding-bottom:8px;">
+              <span>Güncel TL Değeri:</span>
+              <strong id="lblValDovizCurrentTL">0.00 TL</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between; padding-top:4px; align-items:center;">
+              <span style="font-weight:bold;">Net Kur Farkı (TL):</span>
+              <span id="lblValDovizDiffTL" style="font-size:20px; font-weight:bold; font-family:'JetBrains Mono',monospace;">0.00 TL</span>
+            </div>
+            <div id="lblValDovizStatusBadge" style="text-align:center; padding:6px; border-radius:4px; font-weight:bold; font-size:12px; margin-top:8px; display:none;">
+              <!-- Dynamic Gain/Loss Status -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- History Table -->
+      <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Kayıtlı Kur Farkı Hareketleri</h3>
+      <div class="table-responsive" style="overflow-x:auto;">
+        <table class="drafts-table" style="width: 100%; border-collapse: collapse; margin-top: 15px; min-width: 600px;">
+          <thead>
+            <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+              <th style="padding: 12px 10px;">Cari Hesap</th>
+              <th style="padding: 12px 10px;">Döviz Tutarı</th>
+              <th style="padding: 12px 10px; text-align: right;">Fatura Kuru</th>
+              <th style="padding: 12px 10px; text-align: right;">Güncel Kur</th>
+              <th style="padding: 12px 10px; text-align: right;">Kur Farkı</th>
+              <th style="padding: 12px 10px;">Açıklama</th>
+              <th style="padding: 12px 10px; text-align: center; width: 100px;">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody id="tblExchangeDiffHistory">
+            <!-- JS populated -->
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
