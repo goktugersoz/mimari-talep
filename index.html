@@ -410,6 +410,7 @@ comment on table draft_projects is 'Draft Projects Table';</pre>
       <div class="tab" data-muhasebe-tab="cari">CARİ HESAPLAR</div>
       <div class="tab" data-muhasebe-tab="fatura">FATURA YÖNETİMİ</div>
       <div class="tab" data-muhasebe-tab="doviz">DÖVİZ & KUR FARKI</div>
+      <div class="tab" data-muhasebe-tab="satinalma">SATIN ALMA</div>
     </div>
 
     <!-- CONTRACTS PANEL -->
@@ -1069,6 +1070,192 @@ comment on table draft_projects is 'Draft Projects Table';</pre>
             <!-- JS populated -->
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- SATIN ALMA PANEL -->
+    <div class="panel hidden" id="panel-satinalma">
+      <!-- Sub navigation tabs -->
+      <div class="tabs" style="border-bottom: 1.5px solid var(--line); margin-bottom: 20px;">
+        <div class="tab active" data-satinalma-subtab="dashboard" style="font-size:12px; padding:6px 12px;">FİNANS ONAM PANELİ (DASHBOARD)</div>
+        <div class="tab" data-satinalma-subtab="talepler" style="font-size:12px; padding:6px 12px;">TALEPLER LİSTESİ</div>
+        <div class="tab" data-satinalma-subtab="yeni-talep" style="font-size:12px; padding:6px 12px;">YENİ TALEP OLUŞTUR</div>
+      </div>
+
+      <!-- DASHBOARD SUBPANEL -->
+      <div class="satinalma-subpanel" id="subpanel-satinalma-dashboard">
+        <div class="stats-grid" id="satinalmaStatsGrid">
+          <!-- Dynamically filled: Total Budget, Approved Budget, Remaining Budget -->
+        </div>
+
+        <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Finans Onayı Bekleyen Talepler</h3>
+        <div class="table-responsive" style="overflow-x:auto;">
+          <table class="drafts-table" style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+            <thead>
+              <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+                <th style="padding:10px;">Talep No</th>
+                <th style="padding:10px;">Tarih</th>
+                <th style="padding:10px;">Talep Eden Birim</th>
+                <th style="padding:10px;">Ürün / Hizmet</th>
+                <th style="padding:10px; text-align:right;">Toplam Tutar</th>
+                <th style="padding:10px;">Durum</th>
+                <th style="padding:10px; text-align:center; width:100px;">İşlem</th>
+              </tr>
+            </thead>
+            <tbody id="tblPendingApprovalsBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TALEPLER LISTESI SUBPANEL -->
+      <div class="satinalma-subpanel hidden" id="subpanel-satinalma-talepler">
+        <div class="table-responsive" style="overflow-x:auto;">
+          <table class="drafts-table" style="width: 100%; border-collapse: collapse; min-width: 800px;">
+            <thead>
+              <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+                <th style="padding:10px;">Talep No</th>
+                <th style="padding:10px;">Tarih</th>
+                <th style="padding:10px;">Talep Eden</th>
+                <th style="padding:10px;">Ürün / Hizmet</th>
+                <th style="padding:10px; text-align:right;">Miktar</th>
+                <th style="padding:10px; text-align:right;">B.Fiyat</th>
+                <th style="padding:10px; text-align:right;">Toplam</th>
+                <th style="padding:10px;">Durum</th>
+                <th style="padding:10px; text-align:center; width:120px;">İşlemler</th>
+              </tr>
+            </thead>
+            <tbody id="tblSatinalmaTaleplerBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- REVIEW & PAYMENT PLAN DETAILS BLOCK -->
+        <div class="titleblock hidden" id="blockReviewRequest" style="margin-top: 30px; border: 1.5px solid var(--accent); max-width:100%;">
+          <div class="tb-top"><span id="lblReviewTitle">TALEP FİNANS İNCELEMESİ</span></div>
+          <div class="tb-grid" style="grid-template-columns: 1fr 1fr;">
+            <!-- Left Info Panel -->
+            <div class="panel" style="min-height:auto; box-shadow:none; padding:15px; border:1px solid var(--line);">
+              <h4 style="margin-top:0; font-family:'Montserrat',sans-serif;">Talep Detayları</h4>
+              <div style="font-size:13px; display:flex; flex-direction:column; gap:8px;">
+                <div>Talep No: <strong id="lblReviewReqNo">—</strong></div>
+                <div>Ürün / Hizmet: <strong id="lblReviewProduct">—</strong></div>
+                <div>Talep Eden Birim: <strong id="lblReviewDept">—</strong></div>
+                <div>Toplam Tutar: <strong id="lblReviewTotal" style="color:var(--accent-dark);">0.00 TL</strong></div>
+                <div>Açıklama: <span id="lblReviewNotes">—</span></div>
+              </div>
+              <div id="lblReviewBudgetStatus" style="margin-top:15px; padding:8px; border-radius:4px; font-weight:bold; text-align:center; font-size:12px;">
+                <!-- Budget Check Validation -->
+              </div>
+              <div style="display:flex; gap:10px; margin-top:20px; justify-content:center;">
+                <button class="btn-submit" id="btnApproveRequestBudget" style="background:var(--success); border-color:var(--success); width:auto; height:auto; padding:8px 15px; margin:0;">Talebi Onayla</button>
+                <button class="btn-cancel-edit" id="btnRejectRequest" style="background:var(--danger); border-color:var(--danger); color:#fff; width:auto; height:auto; padding:8px 15px; margin:0;">Talebi Reddet</button>
+              </div>
+            </div>
+
+            <!-- Right Payment Plan Form -->
+            <div class="panel" style="min-height:auto; box-shadow:none; padding:15px; border:1px solid var(--line);" id="blockPaymentPlanForm">
+              <h4 style="margin-top:0; font-family:'Montserrat',sans-serif;">Ödeme Planı Oluştur (Onay Sonrası Zorunlu)</h4>
+              <div class="tb-grid" style="grid-template-columns: 1fr 1fr; gap:10px; padding:0;">
+                <div class="cell">
+                  <label>Ödeme Tarihi</label>
+                  <input type="date" id="inpPlanPayDate">
+                </div>
+                <div class="cell">
+                  <label>Ödeme Şekli</label>
+                  <div class="select-wrap">
+                    <select id="selPlanPayMethod">
+                      <option value="BANKA_HAVALESİ">Banka Havalesi</option>
+                      <option value="KREDİ_KARTI">Kredi Kartı</option>
+                      <option value="ÇEK">Müşteri Çeki / Senet</option>
+                      <option value="NAKİT">Nakit</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="cell">
+                  <label>Taksit Sayısı</label>
+                  <input type="number" id="inpPlanInstallments" value="1" min="1">
+                </div>
+                <div class="cell">
+                  <label>Vade Tarihi</label>
+                  <input type="date" id="inpPlanDueDate">
+                </div>
+                <div class="cell full">
+                  <label>Açıklama</label>
+                  <input type="text" id="inpPlanNotes" placeholder="Ödeme planı notları...">
+                </div>
+              </div>
+              <div style="display:flex; justify-content:flex-end; margin-top:15px;">
+                <button class="btn-submit" id="btnSavePaymentPlan" style="width:auto; height:auto; padding:8px 15px; margin:0;">Ödeme Planını Kaydet</button>
+              </div>
+            </div>
+          </div>
+          <div class="tb-actions" style="justify-content:flex-end; padding-top:10px; margin-top:10px; border-top:1px solid var(--line);">
+            <button class="btn-cancel-edit" id="btnHideReviewBlock" style="height:auto; padding:8px 15px;">Kapat</button>
+          </div>
+        </div>
+
+        <!-- AUDIT LOGS SECTION -->
+        <h3 style="font-family:'Montserrat',sans-serif; margin-top:35px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">İşlem Geçmişi (Audit Log)</h3>
+        <div class="table-responsive" style="max-height: 250px; overflow-y:auto; border: 1px solid var(--line); border-radius:6px; background:#fff;">
+          <table class="drafts-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: var(--paper); border-bottom: 1.5px solid var(--line); text-align: left; position: sticky; top:0;">
+                <th style="padding: 8px 10px;">Tarih</th>
+                <th style="padding: 8px 10px;">Kullanıcı</th>
+                <th style="padding: 8px 10px;">İşlem / Açıklama</th>
+              </tr>
+            </thead>
+            <tbody id="tblSatinalmaLogs">
+              <!-- JS populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- YENI TALEP SUBPANEL -->
+      <div class="satinalma-subpanel hidden" id="subpanel-satinalma-yeni-talep">
+        <div class="titleblock" style="max-width: 560px; margin: 0 auto;">
+          <div class="tb-top"><span>YENİ SATIN ALMA TALEBİ OLUŞTUR</span></div>
+          <div class="tb-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="cell">
+              <label>Talep Eden Birim / Departman</label>
+              <div class="select-wrap">
+                <select id="selRequestDept">
+                  <option value="OFİS">Ofis / İdari İşler</option>
+                  <option value="PROJE">Proje / Çizim Birimi</option>
+                  <option value="FABRİKA">Fabrika / Üretim</option>
+                  <option value="LOJİSTİK">Lojistik Birimi</option>
+                </select>
+              </div>
+            </div>
+            <div class="cell">
+              <label>Ürün / Hizmet Tanımı</label>
+              <input type="text" id="inpRequestProduct" placeholder="örn. Çelik Sac 10 Ton">
+            </div>
+            <div class="cell">
+              <label>Miktar</label>
+              <input type="number" id="inpRequestQty" value="1" min="1">
+            </div>
+            <div class="cell">
+              <label>Birim Fiyat (TL)</label>
+              <input type="number" step="0.01" id="inpRequestUnitPrice" placeholder="0.00">
+            </div>
+            <div class="cell full">
+              <label>Toplam Tutar (TL - Otomatik)</label>
+              <input type="text" id="inpRequestTotal" placeholder="0.00" readonly style="font-weight:bold; font-family:'JetBrains Mono',monospace; background:var(--paper);">
+            </div>
+            <div class="cell full">
+              <label>Açıklama / Notlar</label>
+              <textarea id="inpRequestNotes" rows="2" placeholder="Talep detayları, teknik özellikler vb."></textarea>
+            </div>
+          </div>
+          <div class="tb-actions" style="justify-content: flex-end; padding-top: 10px;">
+            <button class="btn-submit" id="btnSavePurchaseRequest" style="width:100%;">Talebi Gönder</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

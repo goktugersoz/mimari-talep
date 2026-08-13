@@ -1221,5 +1221,15 @@
   border: 1px solid #ffcdd2 !important;
 }
 
+/* WORKFLOW STATUS BADGES */
+.status-talep-olusturuldu { background: #e3f2fd; color: #0d47a1; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:11px; }
+.status-incelemede { background: #fff3e0; color: #e65100; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:11px; }
+.status-butce-onaylandi { background: #e8f5e9; color: #1b5e20; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:11px; }
+.status-butce-yetersiz { background: #ffebee; color: #b71c1c; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:11px; }
+.status-plan-hazir { background: #f3e5f5; color: #4a148c; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:11px; }
+.status-tamamlandi { background: #e0f2f1; color: #004d40; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:11px; }
+.status-reddedildi { background: #efebe9; color: #4e342e; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:11px; }
+
+
 
 

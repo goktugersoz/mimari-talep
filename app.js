@@ -2401,6 +2401,7 @@
     $('panel-cari').classList.toggle('hidden', name !== 'cari');
     $('panel-fatura').classList.toggle('hidden', name !== 'fatura');
     $('panel-doviz').classList.toggle('hidden', name !== 'doviz');
+    $('panel-satinalma').classList.toggle('hidden', name !== 'satinalma');
     if (name === 'cari') {
       switchCariSubtab('cari-dashboard');
       loadCariData();
@@ -2408,6 +2409,8 @@
       loadFaturaData();
     } else if (name === 'doviz') {
       loadDovizData();
+    } else if (name === 'satinalma') {
+      loadSatinalmaData();
     }
   }
 
@@ -3921,6 +3924,408 @@ alter table accounting_records disable row level security;</pre>`;
     calculateExchangeDiff();
     renderExchangeDiffHistory();
   });
+
+  // ---- SATIN ALMA FİNANS KONTROLÜ LOGIC ----
+  let purchaseRequests = [];
+  let totalBudget = 500000.00;
+  let purchaseLogs = [];
+  let activeReviewRequestId = null;
+  const STORAGE_KEY_PURCHASE = 'mimari-satinalma-talepleri';
+  const STORAGE_KEY_PURCHASE_LOGS = 'mimari-satinalma-islem-gecmisi';
+
+  function switchSatinalmaSubtab(sub) {
+    document.querySelectorAll('[data-satinalma-subtab]').forEach(t => {
+      t.classList.toggle('active', t.getAttribute('data-satinalma-subtab') === sub);
+    });
+    $('subpanel-satinalma-dashboard').classList.toggle('hidden', sub !== 'dashboard');
+    $('subpanel-satinalma-talepler').classList.toggle('hidden', sub !== 'talepler');
+    $('subpanel-satinalma-yeni-talep').classList.toggle('hidden', sub !== 'yeni-talep');
+    
+    if (sub === 'dashboard' || sub === 'talepler') {
+      renderSatinalmaLists();
+    }
+  }
+
+  async function loadSatinalmaData() {
+    if (useSupabase) {
+      try {
+        const { data: reqs, error: e1 } = await supabase.from('purchase_requests').select('*').order('created_at', { ascending: false });
+        const { data: logs, error: e2 } = await supabase.from('purchase_logs').select('*').order('created_at', { ascending: false });
+        
+        if (e1) throw e1;
+        purchaseRequests = (reqs || []).map(r => ({
+          id: r.id,
+          reqNo: r.req_no,
+          date: r.date,
+          dept: r.dept,
+          product: r.product,
+          qty: parseInt(r.qty || 1),
+          unitPrice: parseFloat(r.unit_price || 0),
+          totalPrice: parseFloat(r.total_price || 0),
+          notes: r.notes,
+          status: r.status,
+          paymentPlan: r.payment_plan ? (typeof r.payment_plan === 'string' ? JSON.parse(r.payment_plan) : r.payment_plan) : null,
+          createdAt: r.created_at
+        }));
+
+        purchaseLogs = (logs || []).map(l => ({
+          id: l.id,
+          date: l.date,
+          user: l.username,
+          action: l.action
+        }));
+      } catch (err) {
+        console.warn("Supabase Satinalma tables not found. Using local fallback.", err);
+        await loadSatinalmaFromLocalStorage();
+      }
+    } else {
+      await loadSatinalmaFromLocalStorage();
+    }
+
+    if (purchaseRequests.length === 0) {
+      purchaseRequests = [
+        {
+          id: 'req-1',
+          reqNo: 'REQ-1001',
+          date: todayISO(),
+          dept: 'FABRİKA',
+          product: 'H14 Pro Metal Profil 200 Adet',
+          qty: 200,
+          unitPrice: 150.00,
+          totalPrice: 30000.00,
+          notes: 'Üretim bandı güçlendirme projesi için yedek parça siparişi.',
+          status: 'Talep Oluşturuldu',
+          paymentPlan: null,
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'req-2',
+          reqNo: 'REQ-1002',
+          date: todayISO(),
+          dept: 'OFİS',
+          product: 'Ofis Büro Koltuğu (Ergonomik)',
+          qty: 5,
+          unitPrice: 2400.00,
+          totalPrice: 12000.00,
+          notes: 'Yeni katılan mühendisler için çalışma alanı sandalye alımı.',
+          status: 'Muhasebe İncelemesinde',
+          paymentPlan: null,
+          createdAt: new Date().toISOString()
+        }
+      ];
+      await savePurchaseRequestsState();
+      
+      purchaseLogs = [
+        { id: 'log-1', date: new Date().toISOString(), user: 'Sistem', action: 'Sistem başlatıldı. Varsayılan bütçe 500,000.00 TL tanımlandı.' }
+      ];
+      await savePurchaseLogsState();
+    }
+
+    renderSatinalmaLists();
+
+    document.querySelectorAll('[data-satinalma-subtab]').forEach(t => {
+      const newT = t.cloneNode(true);
+      t.parentNode.replaceChild(newT, t);
+      newT.addEventListener('click', () => switchSatinalmaSubtab(newT.getAttribute('data-satinalma-subtab')));
+    });
+  }
+
+  async function loadSatinalmaFromLocalStorage() {
+    try {
+      const valReq = await getStorageItem(STORAGE_KEY_PURCHASE);
+      purchaseRequests = valReq ? JSON.parse(valReq) : [];
+      const valLogs = await getStorageItem(STORAGE_KEY_PURCHASE_LOGS);
+      purchaseLogs = valLogs ? JSON.parse(valLogs) : [];
+    } catch (e) {
+      purchaseRequests = [];
+      purchaseLogs = [];
+    }
+  }
+
+  async function savePurchaseRequestsState() {
+    try {
+      await setStorageItem(STORAGE_KEY_PURCHASE, JSON.stringify(purchaseRequests));
+    } catch (e) { }
+  }
+
+  async function savePurchaseLogsState() {
+    try {
+      await setStorageItem(STORAGE_KEY_PURCHASE_LOGS, JSON.stringify(purchaseLogs));
+    } catch (e) { }
+  }
+
+  async function logPurchaseAction(actionText) {
+    const user = (currentUser && currentUser.name) || 'Muhasebe Kullanıcısı';
+    const log = {
+      id: Date.now().toString(36),
+      date: new Date().toISOString(),
+      user,
+      action: actionText
+    };
+    purchaseLogs.unshift(log);
+    await savePurchaseLogsState();
+  }
+
+  function renderSatinalmaLists() {
+    let approvedBudget = 0;
+    purchaseRequests.forEach(r => {
+      if (['Bütçe Onaylandı', 'Ödeme Planı Hazır', 'Satın Alma Tamamlandı'].includes(r.status)) {
+        approvedBudget += r.totalPrice;
+      }
+    });
+    const remainingBudget = totalBudget - approvedBudget;
+
+    const grid = $('satinalmaStatsGrid');
+    if (grid) {
+      grid.innerHTML = `
+        <div class="stat-card">
+          <h4>Toplam Dönem Bütçesi</h4>
+          <div class="val" style="color:var(--ink);">${totalBudget.toLocaleString('tr-TR')} TL</div>
+        </div>
+        <div class="stat-card">
+          <h4>Onaylanan Harcamalar</h4>
+          <div class="val" style="color:var(--accent-dark);">${approvedBudget.toLocaleString('tr-TR')} TL</div>
+        </div>
+        <div class="stat-card">
+          <h4>Kalan Finansman Bütçesi</h4>
+          <div class="val" style="color:${remainingBudget >= 0 ? 'var(--success)' : 'var(--danger)'};">${remainingBudget.toLocaleString('tr-TR')} TL</div>
+        </div>
+      `;
+    }
+
+    const pendingBody = $('tblPendingApprovalsBody');
+    const pendingList = purchaseRequests.filter(r => ['Talep Oluşturuldu', 'Muhasebe İncelemesinde'].includes(r.status));
+    
+    if (pendingBody) {
+      if (pendingList.length === 0) {
+        pendingBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--ink-soft);">Finans onayı bekleyen aktif talep bulunmamaktadır.</td></tr>`;
+      } else {
+        pendingBody.innerHTML = pendingList.map(r => {
+          return `<tr>
+            <td style="font-weight:bold; font-family:'JetBrains Mono',monospace;">${esc(r.reqNo)}</td>
+            <td>${fmtDate(r.date)}</td>
+            <td style="font-weight:700;">${esc(r.dept)}</td>
+            <td>${esc(r.product)}</td>
+            <td style="text-align:right; font-weight:700;">${r.totalPrice.toFixed(2)} TL</td>
+            <td><span class="status-talep-olusturuldu">${esc(r.status)}</span></td>
+            <td style="text-align:center;">
+              <button class="btn-submit" style="width:auto; height:auto; padding:5px 10px; margin:0;" onclick="startReviewRequest('${r.id}')">İncele</button>
+            </td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    const fullBody = $('tblSatinalmaTaleplerBody');
+    if (fullBody) {
+      if (purchaseRequests.length === 0) {
+        fullBody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:20px; color:var(--ink-soft);">Talep bulunmamaktadır.</td></tr>`;
+      } else {
+        fullBody.innerHTML = purchaseRequests.map(r => {
+          let badgeClass = 'status-talep-olusturuldu';
+          if (r.status === 'Muhasebe İncelemesinde') badgeClass = 'status-incelemede';
+          else if (r.status === 'Bütçe Onaylandı') badgeClass = 'status-butce-onaylandi';
+          else if (r.status === 'Bütçe Yetersiz') badgeClass = 'status-butce-yetersiz';
+          else if (r.status === 'Ödeme Planı Hazır') badgeClass = 'status-plan-hazir';
+          else if (r.status === 'Satın Alma Tamamlandı') badgeClass = 'status-tamamlandi';
+          else if (r.status === 'Reddedildi') badgeClass = 'status-reddedildi';
+
+          return `<tr>
+            <td style="font-weight:bold; font-family:'JetBrains Mono',monospace;">${esc(r.reqNo)}</td>
+            <td>${fmtDate(r.date)}</td>
+            <td style="font-weight:700;">${esc(r.dept)}</td>
+            <td>${esc(r.product)}</td>
+            <td style="text-align:right;">${r.qty}</td>
+            <td style="text-align:right;">${r.unitPrice.toFixed(2)}</td>
+            <td style="text-align:right; font-weight:700;">${r.totalPrice.toFixed(2)} TL</td>
+            <td><span class="${badgeClass}">${esc(r.status)}</span></td>
+            <td style="text-align:center;">
+              <button class="btn-submit" style="width:auto; height:auto; padding:5px 10px; margin:0; background:var(--accent);" onclick="startReviewRequest('${r.id}')">İncele</button>
+            </td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    const logsBody = $('tblSatinalmaLogs');
+    if (logsBody) {
+      logsBody.innerHTML = purchaseLogs.map(l => {
+        return `<tr>
+          <td style="font-size:11px; color:var(--ink-soft); white-space:nowrap; padding:6px 10px;">${new Date(l.date).toLocaleString('tr-TR')}</td>
+          <td style="font-weight:bold; font-size:12px; padding:6px 10px;">${esc(l.user)}</td>
+          <td style="font-size:12px; padding:6px 10px;">${esc(l.action)}</td>
+        </tr>`;
+      }).join('');
+    }
+  }
+
+  function startReviewRequest(id) {
+    const r = purchaseRequests.find(req => req.id === id);
+    if (!r) return;
+
+    activeReviewRequestId = id;
+    switchSatinalmaSubtab('talepler');
+
+    $('lblReviewReqNo').textContent = r.reqNo;
+    $('lblReviewProduct').textContent = r.product;
+    $('lblReviewDept').textContent = r.dept;
+    $('lblReviewTotal').textContent = r.totalPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) + ' TL';
+    $('lblReviewNotes').textContent = r.notes || 'Açıklama belirtilmemiş.';
+
+    let approvedBudget = 0;
+    purchaseRequests.forEach(req => {
+      if (req.id !== id && ['Bütçe Onaylandı', 'Ödeme Planı Hazır', 'Satın Alma Tamamlandı'].includes(req.status)) {
+        approvedBudget += req.totalPrice;
+      }
+    });
+    const remaining = totalBudget - approvedBudget;
+    const fits = r.totalPrice <= remaining;
+
+    const bBadge = $('lblReviewBudgetStatus');
+    if (fits) {
+      bBadge.textContent = `BÜTÇE UYGUN: Dönem bakiyesi yeterlidir (Bakiye: ${remaining.toLocaleString('tr-TR')} TL)`;
+      bBadge.className = 'doviz-gain';
+    } else {
+      bBadge.textContent = `LİMİT AŞIMI: Talep tutarı mevcut bütçeyi aşıyor (Bakiye: ${remaining.toLocaleString('tr-TR')} TL)`;
+      bBadge.className = 'doviz-loss';
+    }
+
+    $('blockReviewRequest').classList.remove('hidden');
+    $('blockPaymentPlanForm').classList.add('hidden');
+    
+    $('inpPlanPayDate').value = todayISO();
+    $('inpPlanDueDate').value = todayISO();
+  }
+
+  $('btnApproveRequestBudget').addEventListener('click', async () => {
+    if (!activeReviewRequestId) return;
+    const r = purchaseRequests.find(req => req.id === activeReviewRequestId);
+    
+    let approvedBudget = 0;
+    purchaseRequests.forEach(req => {
+      if (req.id !== activeReviewRequestId && ['Bütçe Onaylandı', 'Ödeme Planı Hazır', 'Satın Alma Tamamlandı'].includes(req.status)) {
+        approvedBudget += req.totalPrice;
+      }
+    });
+    const remaining = totalBudget - approvedBudget;
+    const fits = r.totalPrice <= remaining;
+
+    r.status = fits ? 'Bütçe Onaylandı' : 'Bütçe Yetersiz';
+    await savePurchaseRequestsState();
+    
+    await logPurchaseAction(`${r.reqNo} nolu satın alma talebi için bütçe kontrolü yapıldı: ${r.status}.`);
+    
+    if (r.status === 'Bütçe Onaylandı') {
+      showToast('Bütçe onaylandı. Ödeme planı girmelisiniz.');
+      $('blockPaymentPlanForm').classList.remove('hidden');
+    } else {
+      showToast('Dönem bütçesi yetersiz olduğundan bütçe kontrolü olumsuz sonuçlandı.', true);
+    }
+    renderSatinalmaLists();
+  });
+
+  $('btnRejectRequest').addEventListener('click', async () => {
+    if (!activeReviewRequestId) return;
+    const r = purchaseRequests.find(req => req.id === activeReviewRequestId);
+    r.status = 'Reddedildi';
+    await savePurchaseRequestsState();
+    
+    await logPurchaseAction(`${r.reqNo} nolu satın alma talebi reddedildi.`);
+    showToast('Satın alma talebi reddedildi.');
+    $('blockReviewRequest').classList.add('hidden');
+    renderSatinalmaLists();
+  });
+
+  $('btnSavePaymentPlan').addEventListener('click', async () => {
+    if (!activeReviewRequestId) return;
+    const r = purchaseRequests.find(req => req.id === activeReviewRequestId);
+
+    const payDate = $('inpPlanPayDate').value;
+    const method = $('selPlanPayMethod').value;
+    const installments = parseInt($('inpPlanInstallments').value || 1);
+    const dueDate = $('inpPlanDueDate').value;
+    const notes = $('inpPlanNotes').value.trim();
+
+    if (!payDate || !dueDate) {
+      showToast('Lütfen ödeme planı tarihlerini doldurun.', true);
+      return;
+    }
+
+    r.paymentPlan = {
+      payDate,
+      method,
+      installments,
+      dueDate,
+      notes
+    };
+    r.status = 'Satın Alma Tamamlandı';
+    await savePurchaseRequestsState();
+
+    await logPurchaseAction(`${r.reqNo} için ödeme planı oluşturuldu (${installments} taksit, ${method}). Satın alma tamamlandı.`);
+    showToast('Ödeme planı kaydedildi, satın alma başarıyla tamamlandı.');
+    
+    $('blockReviewRequest').classList.add('hidden');
+    renderSatinalmaLists();
+  });
+
+  $('btnHideReviewBlock').addEventListener('click', () => {
+    $('blockReviewRequest').classList.add('hidden');
+  });
+
+  // Calculate live total on new request form
+  ['inpRequestQty', 'inpRequestUnitPrice'].forEach(id => {
+    $(id).addEventListener('input', () => {
+      const qty = parseInt($('inpRequestQty').value || 0);
+      const price = parseFloat($('inpRequestUnitPrice').value || 0);
+      $('inpRequestTotal').value = (qty * price).toFixed(2) + ' TL';
+    });
+  });
+
+  $('btnSavePurchaseRequest').addEventListener('click', async () => {
+    const dept = $('selRequestDept').value;
+    const product = $('inpRequestProduct').value.trim();
+    const qty = parseInt($('inpRequestQty').value || 1);
+    const unitPrice = parseFloat($('inpRequestUnitPrice').value || 0);
+
+    if (!product || unitPrice <= 0) {
+      showToast('Lütfen geçerli ürün adı ve birim fiyat girin.', true);
+      return;
+    }
+
+    const nextIdNum = purchaseRequests.length + 1001;
+    const reqNo = `REQ-${nextIdNum}`;
+
+    const newRequest = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      reqNo,
+      date: todayISO(),
+      dept,
+      product,
+      qty,
+      unitPrice,
+      totalPrice: qty * unitPrice,
+      notes: $('inpRequestNotes').value.trim(),
+      status: 'Talep Oluşturuldu',
+      paymentPlan: null,
+      createdAt: new Date().toISOString()
+    };
+
+    purchaseRequests.unshift(newRequest);
+    await savePurchaseRequestsState();
+
+    await logPurchaseAction(`${reqNo} nolu yeni satın alma talebi oluşturuldu (${dept} -> ${product}).`);
+    showToast('Satın alma talebiniz başarıyla gönderildi.');
+
+    $('inpRequestProduct').value = '';
+    $('inpRequestQty').value = '1';
+    $('inpRequestUnitPrice').value = '';
+    $('inpRequestTotal').value = '0.00 TL';
+    $('inpRequestNotes').value = '';
+
+    switchSatinalmaSubtab('dashboard');
+  });
+
+  window.startReviewRequest = startReviewRequest;
 
 
 
