@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="style.css">
    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
 
@@ -407,6 +408,7 @@ comment on table draft_projects is 'Draft Projects Table';</pre>
       <div class="tab" data-muhasebe-tab="drivers">ŞOFÖR BİLGİLERİ</div>
       <div class="tab" data-muhasebe-tab="customers">MÜŞTERİ BİLGİLERİ</div>
       <div class="tab" data-muhasebe-tab="cari">CARİ HESAPLAR</div>
+      <div class="tab" data-muhasebe-tab="fatura">FATURA YÖNETİMİ</div>
     </div>
 
     <!-- CONTRACTS PANEL -->
@@ -840,6 +842,117 @@ comment on table draft_projects is 'Draft Projects Table';</pre>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- FATURA PANEL -->
+    <div class="panel hidden" id="panel-fatura" style="padding:0; overflow:hidden;">
+      <div class="flex flex-col md:flex-row min-h-[550px] bg-slate-50 font-sans text-slate-800">
+        <!-- Sidebar Navigation -->
+        <aside class="w-full md:w-64 bg-slate-900 text-slate-100 flex flex-col border-r border-slate-800 flex-shrink-0">
+          <div class="p-4 border-b border-slate-800">
+            <h3 class="text-sm font-bold tracking-wider text-slate-400 uppercase">Fatura Yönetimi</h3>
+          </div>
+          <nav class="flex-1 p-2 space-y-1">
+            <!-- Accordion 1: Satış Faturaları -->
+            <div class="accordion-item">
+              <button class="w-full flex items-center justify-between p-3 rounded-lg hover:bg-slate-800 transition-colors text-left font-medium" data-fatura-acc="satis">
+                <span class="flex items-center gap-2">
+                  <span class="text-lg">📁</span>
+                  <span>Satış Faturaları</span>
+                </span>
+                <span class="acc-arrow transition-transform duration-200">▼</span>
+              </button>
+              <div class="acc-content hidden pl-8 pr-2 py-1 space-y-1 transition-all duration-300" id="acc-content-satis">
+                <a href="#" class="block p-2 rounded text-sm text-slate-300 hover:text-white hover:bg-slate-800 font-medium" data-fatura-sub="kesilen"> Kesilen Faturalar</a>
+                <a href="#" class="block p-2 rounded text-sm text-slate-300 hover:text-white hover:bg-slate-800 font-medium" data-fatura-sub="bekleyen"> Bekleyen Faturalar</a>
+                <a href="#" class="block p-2 rounded text-sm text-slate-300 hover:text-white hover:bg-slate-800 font-medium" data-fatura-sub="iptal"> İptal Edilenler</a>
+              </div>
+            </div>
+
+            <!-- Accordion 2: Alış Faturaları -->
+            <div class="accordion-item">
+              <button class="w-full flex items-center justify-between p-3 rounded-lg hover:bg-slate-800 transition-colors text-left font-medium" data-fatura-acc="alis">
+                <span class="flex items-center gap-2">
+                  <span class="text-lg">📁</span>
+                  <span>Alış Faturaları</span>
+                </span>
+                <span class="acc-arrow transition-transform duration-200">▼</span>
+              </button>
+              <div class="acc-content hidden pl-8 pr-2 py-1 space-y-1 transition-all duration-300" id="acc-content-alis">
+                <a href="#" class="block p-2 rounded text-sm text-slate-300 hover:text-white hover:bg-slate-800 font-medium" data-fatura-sub="malzeme"> Malzeme Faturaları</a>
+                <a href="#" class="block p-2 rounded text-sm text-slate-300 hover:text-white hover:bg-slate-800 font-medium" data-fatura-sub="hizmet"> Hizmet Faturaları</a>
+                <a href="#" class="block p-2 rounded text-sm text-slate-300 hover:text-white hover:bg-slate-800 font-medium" data-fatura-sub="nakliye"> Nakliye Faturaları</a>
+                <a href="#" class="block p-2 rounded text-sm text-slate-300 hover:text-white hover:bg-slate-800 font-medium" data-fatura-sub="elektrik"> Elektrik Faturaları</a>
+                <a href="#" class="block p-2 rounded text-sm text-slate-300 hover:text-white hover:bg-slate-800 font-medium" data-fatura-sub="su"> Su Faturaları</a>
+                <a href="#" class="block p-2 rounded text-sm text-slate-300 hover:text-white hover:bg-slate-800 font-medium" data-fatura-sub="dogalgaz"> Doğalgaz Faturaları</a>
+              </div>
+            </div>
+          </nav>
+        </aside>
+
+        <!-- Right Content Pane -->
+        <main class="flex-1 p-6 flex flex-col bg-white">
+          <div class="border-b border-slate-200 pb-4 mb-6 flex justify-between items-center">
+            <div>
+              <h2 class="text-xl font-bold text-slate-900" id="faturaPageTitle">Lütfen Seçim Yapın</h2>
+              <p class="text-xs text-slate-500 mt-1" id="faturaPageDesc">Fatura yönetim hiyerarşisinden bir işlem türü seçin.</p>
+            </div>
+            <!-- Add Invoice Trigger -->
+            <button class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm px-4 py-2 rounded-lg transition-colors hidden" id="btnShowAddInvoiceForm">+ Yeni Fatura Ekle</button>
+          </div>
+
+          <!-- Add Invoice Form Titleblock -->
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-5 mb-6 hidden" id="blockAddInvoiceForm">
+            <h3 class="text-base font-bold text-slate-900 mb-4">Yeni Fatura Girişi</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Cari Seçin</label>
+                <select id="selFaturaCari" class="w-full text-sm p-2 border border-slate-300 rounded bg-white"></select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Fatura Tarihi</label>
+                <input type="date" id="inpFaturaDate" class="w-full text-sm p-2 border border-slate-300 rounded">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Tutar (KDV Dahil - TL)</label>
+                <input type="number" step="0.01" id="inpFaturaAmount" placeholder="0.00" class="w-full text-sm p-2 border border-slate-300 rounded">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Fatura Numarası</label>
+                <input type="text" id="inpFaturaNo" placeholder="örn. GIB2026000001" class="w-full text-sm p-2 border border-slate-300 rounded">
+              </div>
+              <div class="md:col-span-2">
+                <label class="block text-xs font-bold text-slate-600 mb-1">Açıklama</label>
+                <input type="text" id="inpFaturaNotes" placeholder="Açıklama girin..." class="w-full text-sm p-2 border border-slate-300 rounded">
+              </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-4">
+              <button class="text-sm px-4 py-2 border border-slate-300 rounded hover:bg-slate-100 font-medium" id="btnCancelFaturaForm">İptal</button>
+              <button class="text-sm px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-medium" id="btnSaveInvoice">Faturayı Kaydet</button>
+            </div>
+          </div>
+
+          <!-- Invoices Datatable -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm border-collapse">
+              <thead>
+                <tr class="bg-slate-100 text-slate-700 border-b border-slate-200">
+                  <th class="p-3 font-semibold">Tarih</th>
+                  <th class="p-3 font-semibold">Fatura No</th>
+                  <th class="p-3 font-semibold">Cari Hesap</th>
+                  <th class="p-3 font-semibold">Açıklama</th>
+                  <th class="p-3 font-semibold text-right">Tutar</th>
+                  <th class="p-3 font-semibold">Durum</th>
+                  <th class="p-3 font-semibold text-center w-[120px]">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody id="tblInvoicesBody" class="divide-y divide-slate-100">
+                <!-- Dynamically filled with data rows -->
+              </tbody>
+            </table>
+          </div>
+        </main>
       </div>
     </div>
   </div>

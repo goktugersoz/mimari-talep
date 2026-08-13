@@ -1194,3 +1194,19 @@
   }
 }
 
+/* FATURA ACCORDION TRANSITION STYLES */
+#panel-fatura .acc-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
+  opacity: 0;
+}
+#panel-fatura .acc-content.open {
+  max-height: 500px;
+  opacity: 1;
+}
+#panel-fatura .acc-arrow.rotated {
+  transform: rotate(90deg);
+}
+
+

@@ -2399,9 +2399,12 @@
     $('panel-drivers').classList.toggle('hidden', name !== 'drivers');
     $('panel-customers').classList.toggle('hidden', name !== 'customers');
     $('panel-cari').classList.toggle('hidden', name !== 'cari');
+    $('panel-fatura').classList.toggle('hidden', name !== 'fatura');
     if (name === 'cari') {
       switchCariSubtab('cari-dashboard');
       loadCariData();
+    } else if (name === 'fatura') {
+      loadFaturaData();
     }
   }
 
@@ -3318,6 +3321,285 @@ alter table accounting_records disable row level security;</pre>`;
   document.querySelectorAll('[data-cari-subtab]').forEach(t => {
     t.addEventListener('click', () => switchCariSubtab(t.getAttribute('data-cari-subtab')));
   });
+
+  // ---- FATURA YÖNETİMİ PORTAL LOGIC ----
+  let invoices = [];
+  let currentFaturaSubpage = '';
+  const STORAGE_KEY_INVOICES = 'mimari-faturalar';
+
+  function initAccordion() {
+    document.querySelectorAll('[data-fatura-acc]').forEach(btn => {
+      const newBtn = btn.cloneNode(true);
+      btn.parentNode.replaceChild(newBtn, btn);
+      
+      newBtn.addEventListener('click', () => {
+        const group = newBtn.getAttribute('data-fatura-acc');
+        const content = $('acc-content-' + group);
+        const arrow = newBtn.querySelector('.acc-arrow');
+        
+        if (content.classList.contains('hidden')) {
+          content.classList.remove('hidden');
+          setTimeout(() => {
+            content.classList.add('open');
+            arrow.classList.add('rotated');
+          }, 10);
+        } else {
+          content.classList.remove('open');
+          arrow.classList.remove('rotated');
+          setTimeout(() => {
+            content.classList.add('hidden');
+          }, 300);
+        }
+      });
+    });
+
+    document.querySelectorAll('[data-fatura-sub]').forEach(link => {
+      const newLink = link.cloneNode(true);
+      link.parentNode.replaceChild(newLink, link);
+      
+      newLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        const sub = newLink.getAttribute('data-fatura-sub');
+        switchFaturaSubpage(sub);
+      });
+    });
+  }
+
+  function switchFaturaSubpage(sub) {
+    currentFaturaSubpage = sub;
+    
+    document.querySelectorAll('[data-fatura-sub]').forEach(l => {
+      l.classList.toggle('text-white', l.getAttribute('data-fatura-sub') === sub);
+      l.classList.toggle('bg-slate-800', l.getAttribute('data-fatura-sub') === sub);
+      l.classList.toggle('text-slate-300', l.getAttribute('data-fatura-sub') !== sub);
+    });
+
+    let title = 'Fatura Listesi';
+    let desc = '';
+    let isSales = true;
+    
+    const subTitles = {
+      'kesilen': ['Kesilen Satış Faturaları', 'Müşterilere kesilen onaylı satış faturaları listesi.', true],
+      'bekleyen': ['Bekleyen Satış Faturaları', 'Onay veya tahsilat bekleyen faturalar.', true],
+      'iptal': ['İptal Edilen Faturalar', 'İptal edilmiş satış faturaları.', true],
+      'malzeme': ['Malzeme Alış Faturaları', 'Tedarikçilerden alınan malzeme faturaları.', false],
+      'hizmet': ['Hizmet Alış Faturaları', 'Alınan danışmanlık, bakım vb. hizmet faturaları.', false],
+      'nakliye': ['Nakliye Alış Faturaları', 'Lojistik ve sevkiyat gider faturaları.', false],
+      'elektrik': ['Elektrik Alış Faturaları', 'İşletme elektrik tüketim faturaları.', false],
+      'su': ['Su Alış Faturaları', 'İşletme su faturaları.', false],
+      'dogalgaz': ['Doğalgaz Alış Faturaları', 'Isınma ve doğalgaz tüketim faturaları.', false]
+    };
+
+    if (subTitles[sub]) {
+      title = subTitles[sub][0];
+      desc = subTitles[sub][1];
+      isSales = subTitles[sub][2];
+    }
+
+    $('faturaPageTitle').textContent = title;
+    $('faturaPageDesc').textContent = desc;
+
+    $('btnShowAddInvoiceForm').classList.remove('hidden');
+    $('blockAddInvoiceForm').classList.add('hidden');
+
+    const list = cariAccounts.filter(c => c.status === 'AKTİF');
+    const filteredCaris = list.filter(c => {
+      if (isSales) {
+        return c.type === 'MÜŞTERİ' || c.type === 'HER_İKİSİ';
+      } else {
+        return c.type === 'TEDARİKÇİ' || c.type === 'HER_İKİSİ';
+      }
+    });
+
+    $('selFaturaCari').innerHTML = '<option value="">— Cari Seçin —</option>' + 
+      filteredCaris.map(c => `<option value="${c.id}">${esc(c.code)} - ${esc(c.name)}</option>`).join('');
+
+    renderInvoices();
+  }
+
+  async function loadFaturaData() {
+    if (cariAccounts.length === 0) {
+      await loadCariData();
+    }
+    
+    if (useSupabase) {
+      try {
+        const { data, error } = await supabase.from('invoices').select('*').order('date', { ascending: false });
+        if (error) throw error;
+        invoices = (data || []).map(i => ({
+          id: i.id,
+          cariId: i.cari_id,
+          category: i.category,
+          date: i.date,
+          amount: parseFloat(i.amount || 0),
+          invoiceNo: i.invoice_no,
+          notes: i.notes,
+          createdAt: i.created_at
+        }));
+      } catch (e) {
+        console.warn("Supabase Invoices table not found. Using local fallback.", e);
+        await loadFaturaFromLocalStorage();
+      }
+    } else {
+      await loadFaturaFromLocalStorage();
+    }
+
+    initAccordion();
+    if (!currentFaturaSubpage) {
+      switchFaturaSubpage('kesilen');
+      const satisContent = $('acc-content-satis');
+      satisContent.classList.remove('hidden');
+      satisContent.classList.add('open');
+      document.querySelector('[data-fatura-acc="satis"] .acc-arrow').classList.add('rotated');
+    } else {
+      renderInvoices();
+    }
+  }
+
+  async function loadFaturaFromLocalStorage() {
+    try {
+      const val = await getStorageItem(STORAGE_KEY_INVOICES);
+      invoices = val ? JSON.parse(val) : [];
+    } catch (e) {
+      invoices = [];
+    }
+  }
+
+  async function saveInvoice(inv) {
+    if (useSupabase) {
+      try {
+        const { error } = await supabase.from('invoices').insert({
+          id: inv.id,
+          cari_id: inv.cariId,
+          category: inv.category,
+          date: inv.date,
+          amount: inv.amount,
+          invoice_no: inv.invoiceNo,
+          notes: inv.notes,
+          created_at: inv.createdAt
+        });
+        if (!error) return true;
+      } catch (e) { }
+    }
+    invoices.push(inv);
+    await saveFaturaToLocalStorage();
+    return true;
+  }
+
+  async function saveFaturaToLocalStorage() {
+    try {
+      await setStorageItem(STORAGE_KEY_INVOICES, JSON.stringify(invoices));
+    } catch (e) { }
+  }
+
+  function renderInvoices() {
+    const tbody = $('tblInvoicesBody');
+    if (!tbody) return;
+
+    const list = invoices.filter(i => i.category === currentFaturaSubpage);
+    
+    if (list.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400">Bu kategoride kayıtlı fatura bulunmamaktadır.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = list.map(i => {
+      const cari = cariAccounts.find(c => c.id === i.cariId);
+      const cariName = cari ? cari.name : 'Belirtilmemiş Cari';
+      const statusText = currentFaturaSubpage === 'kesilen' ? 'Ödendi' : (currentFaturaSubpage === 'bekleyen' ? 'Açık Fatura' : (currentFaturaSubpage === 'iptal' ? 'İptal' : 'Kayıtlı'));
+      const statusColor = currentFaturaSubpage === 'kesilen' ? 'bg-emerald-100 text-emerald-800' : (currentFaturaSubpage === 'bekleyen' ? 'bg-amber-100 text-amber-800' : (currentFaturaSubpage === 'iptal' ? 'bg-rose-100 text-rose-800' : 'bg-blue-100 text-blue-800'));
+
+      return `<tr class="hover:bg-slate-50 transition-colors">
+        <td class="p-3 font-medium text-slate-900">${fmtDate(i.date)}</td>
+        <td class="p-3 font-mono font-bold text-slate-700">${esc(i.invoiceNo)}</td>
+        <td class="p-3 text-slate-700 font-semibold">${esc(cariName)}</td>
+        <td class="p-3 text-slate-500">${esc(i.notes || '—')}</td>
+        <td class="p-3 text-right font-bold text-slate-900">${i.amount.toFixed(2)} TL</td>
+        <td class="p-3"><span class="px-2 py-1 text-xs font-semibold rounded ${statusColor}">${statusText}</span></td>
+        <td class="p-3 text-center">
+          <button class="bg-rose-50 hover:bg-rose-100 text-rose-600 p-2 rounded transition-colors text-xs font-bold" onclick="deleteInvoice('${i.id}')">Sil</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function deleteInvoice(id) {
+    if (!confirm('Bu faturayı kalıcı olarak silmek istediğinize emin misiniz?')) return;
+    
+    if (useSupabase) {
+      try {
+        await supabase.from('invoices').delete().eq('id', id);
+      } catch (e) { }
+    }
+
+    invoices = invoices.filter(i => i.id !== id);
+    await saveFaturaToLocalStorage();
+    showToast('Fatura silindi.');
+    renderInvoices();
+  }
+
+  window.deleteInvoice = deleteInvoice;
+
+  // Fatura Form Control listeners
+  $('btnShowAddInvoiceForm').addEventListener('click', () => {
+    $('blockAddInvoiceForm').classList.toggle('hidden');
+    $('inpFaturaDate').value = todayISO();
+  });
+
+  $('btnCancelFaturaForm').addEventListener('click', () => {
+    $('blockAddInvoiceForm').classList.add('hidden');
+    $('selFaturaCari').value = '';
+    $('inpFaturaAmount').value = '';
+    $('inpFaturaNo').value = '';
+    $('inpFaturaNotes').value = '';
+  });
+
+  $('btnSaveInvoice').addEventListener('click', async () => {
+    const cariId = $('selFaturaCari').value;
+    const date = $('inpFaturaDate').value;
+    const amount = parseFloat($('inpFaturaAmount').value);
+    const invoiceNo = $('inpFaturaNo').value.trim();
+    const notes = $('inpFaturaNotes').value.trim();
+
+    if (!cariId || !date || isNaN(amount) || amount <= 0 || !invoiceNo) {
+      showToast('Lütfen fatura bilgilerini eksiksiz doldurun.', true);
+      return;
+    }
+
+    const newInv = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      cariId,
+      category: currentFaturaSubpage,
+      date,
+      amount,
+      invoiceNo,
+      notes,
+      createdAt: new Date().toISOString()
+    };
+
+    await saveInvoice(newInv);
+    
+    const isSales = currentFaturaSubpage === 'kesilen' || currentFaturaSubpage === 'bekleyen' || currentFaturaSubpage === 'iptal';
+    const txType = isSales ? 'BORÇ' : 'ALACAK';
+    
+    const tx = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      cari_id: cariId,
+      type: txType,
+      date,
+      amount,
+      ref_no: invoiceNo,
+      notes: `${currentFaturaSubpage.toUpperCase()} Faturası: ${notes || 'Fatura kaydı'}`,
+      created_at: new Date().toISOString()
+    };
+
+    await saveAccountingRecord(tx);
+
+    showToast('Fatura başarıyla kaydedildi.');
+    $('btnCancelFaturaForm').click();
+    renderInvoices();
+  });
+
 
 
   async function init() {
