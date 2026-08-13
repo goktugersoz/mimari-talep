@@ -334,15 +334,9 @@
   function showApp() {
     $('loginContainer').style.display = 'none';
     
-    // Check if the current user has the Accountant role
     const isAccountant = currentUser && (currentUser.role === 'MUHASEBE' || currentUser.role === 'MUHASEBECİ');
-    
     if (isAccountant) {
-      $('appContainer').classList.add('hidden');
-      $('muhasebeContainer').classList.remove('hidden');
-      $('lblCurrentMuhasebeUser').textContent = `${currentUser.username} (${currentUser.role})`;
-      switchMuhasebeTab('contracts');
-      loadAccountingRecords();
+      window.location.href = 'muhasebe.html';
       return;
     }
 
