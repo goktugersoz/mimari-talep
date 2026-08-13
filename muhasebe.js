@@ -210,6 +210,7 @@
     $('panel-fatura').classList.toggle('hidden', name !== 'fatura');
     $('panel-doviz').classList.toggle('hidden', name !== 'doviz');
     $('panel-satinalma').classList.toggle('hidden', name !== 'satinalma');
+    $('panel-raporlar').classList.toggle('hidden', name !== 'raporlar');
     if (name === 'cari') {
       switchCariSubtab('cari-dashboard');
       loadCariData();
@@ -219,6 +220,8 @@
       loadDovizData();
     } else if (name === 'satinalma') {
       loadSatinalmaData();
+    } else if (name === 'raporlar') {
+      initRaporlar();
     }
   }
 
@@ -1665,6 +1668,8 @@
     const cariId = $('selCariTahsilat').value;
     const date = $('inpTahsilatDate').value;
     const amount = parseFloat($('inpTahsilatAmount').value);
+    const account_id = $('selTahsilatAccount').value;
+    const category = $('selTahsilatCategory').value;
     const ref = $('inpTahsilatRef').value.trim();
     const notes = $('inpTahsilatNotes').value.trim();
 
@@ -1679,6 +1684,8 @@
       type: 'TAHSİLAT',
       date,
       amount,
+      account_id,
+      category,
       ref_no: ref,
       notes: notes || 'Tahsilat kaydı',
       created_at: new Date().toISOString()
@@ -1705,6 +1712,8 @@
     const cariId = $('selCariOdeme').value;
     const type = $('selOdemeType').value;
     const date = $('inpOdemeDate').value;
+    const account_id = $('selOdemeAccount').value;
+    const category = $('selOdemeCategory').value;
     const amount = parseFloat($('inpOdemeAmount').value);
     const ref = $('inpOdemeRef').value.trim();
     const notes = $('inpOdemeNotes').value.trim();
@@ -1720,6 +1729,8 @@
       type,
       date,
       amount,
+      account_id: type === 'ÖDEME' ? account_id : null,
+      category,
       ref_no: ref,
       notes: notes || `${type} kaydı`,
       created_at: new Date().toISOString()
@@ -2010,11 +2021,934 @@
     switchSatinalmaSubtab('dashboard');
   });
 
+  // ==========================================
+  // --- FINANS RAPORLARI VE DASHBOARD MANTIĞI ---
+  // ==========================================
+  
+  let auditLogs = [];
+  let currentRaporSubtab = 'kasa';
+  let chartNakitObj = null;
+  let chartGelirGiderObj = null;
+  let chartBorcAlacakObj = null;
+
+  async function loadAuditLogs() {
+    try {
+      const stored = await getStorageItem('mimari-audit-logs');
+      auditLogs = stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      auditLogs = [];
+    }
+  }
+
+  async function saveAuditLog(action, detail) {
+    const userDisplay = currentUser ? `${currentUser.username} (${currentUser.role})` : 'Anonim';
+    const log = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      time: new Date().toISOString(),
+      user: currentUser ? currentUser.username : 'Anonim',
+      role: currentUser ? currentUser.role : 'Belirtilmemiş',
+      action,
+      detail
+    };
+    auditLogs.unshift(log);
+    try {
+      await setStorageItem('mimari-audit-logs', JSON.stringify(auditLogs));
+    } catch (e) {}
+  }
+
+  // --- Rapor Paneli Başlatıcı ---
+  async function initRaporlar() {
+    await loadAuditLogs();
+    
+    // Rol kontrolü ve yetkilendirme gösterimi
+    const userRole = (currentUser && currentUser.role) || 'MUHASEBE';
+    $('lblSelectedUserRole').textContent = `Rol: ${userRole}`;
+
+    // Admin / Yönetici ise Audit Log sekmesini göster
+    if (userRole === 'admin' || userRole === 'YÖNETİM' || userRole === 'YÖNETİCİ') {
+      $('tabRaporAudit').style.display = 'block';
+    } else {
+      $('tabRaporAudit').style.display = 'none';
+      if (currentRaporSubtab === 'audit') {
+        currentRaporSubtab = 'kasa';
+      }
+    }
+
+    // Varsayılan tarih filtrelerini ayarla (Ayın 1'inden bugüne)
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    // ISO string formatına dönüştür (YYYY-MM-DD)
+    const toISO = (d) => d.toISOString().slice(0, 10);
+    if (!$('inpRaporStart').value) {
+      $('inpRaporStart').value = toISO(startOfMonth);
+    }
+    if (!$('inpRaporEnd').value) {
+      $('inpRaporEnd').value = toISO(today);
+    }
+
+    // Carileri Dropdown'a yükle
+    const emptyOpt = '<option value="">Tüm Cariler</option>';
+    const cariOpts = cariAccounts.map(c => `<option value="${c.id}">${esc(c.code)} - ${esc(c.name)}</option>`).join('');
+    $('selRaporCari').innerHTML = emptyOpt + cariOpts;
+
+    // Subtab geçiş eventleri
+    document.querySelectorAll('[data-rapor-subtab]').forEach(tab => {
+      const newTab = tab.cloneNode(true);
+      tab.parentNode.replaceChild(newTab, tab);
+      newTab.addEventListener('click', () => {
+        switchRaporSubtab(newTab.getAttribute('data-rapor-subtab'));
+      });
+    });
+
+    // Filtreleme click event
+    const btnFilter = $('btnFilterRapor');
+    const newBtnFilter = btnFilter.cloneNode(true);
+    btnFilter.parentNode.replaceChild(newBtnFilter, btnFilter);
+    newBtnFilter.addEventListener('click', () => {
+      saveAuditLog('Filtre Uygulandı', 'Finansal raporlar yeni filtre kriterleriyle güncellendi.');
+      renderFinansDashboard();
+      renderSelectedReport();
+    });
+
+    // Dışa Aktarma ve Yazdırma Eventleri
+    setupExportEvents();
+
+    // İlk gösterim
+    renderFinansDashboard();
+    renderSelectedReport();
+  }
+
+  function switchRaporSubtab(tabName) {
+    currentRaporSubtab = tabName;
+    document.querySelectorAll('[data-rapor-subtab]').forEach(tab => {
+      tab.classList.toggle('active', tab.getAttribute('data-rapor-subtab') === tabName);
+    });
+
+    $('subpanel-rapor-kasa').classList.toggle('hidden', tabName !== 'kasa');
+    $('subpanel-rapor-banka').classList.toggle('hidden', tabName !== 'banka');
+    $('subpanel-rapor-nakit').classList.toggle('hidden', tabName !== 'nakit');
+    $('subpanel-rapor-gelirgider').classList.toggle('hidden', tabName !== 'gelirgider');
+    $('subpanel-rapor-karzarar').classList.toggle('hidden', tabName !== 'karzarar');
+    $('subpanel-rapor-bilanco').classList.toggle('hidden', tabName !== 'bilanco');
+    $('subpanel-rapor-borcalacak').classList.toggle('hidden', tabName !== 'borcalacak');
+    $('subpanel-rapor-audit').classList.toggle('hidden', tabName !== 'audit');
+
+    saveAuditLog('Rapor Görüntüleme', `${tabName.toUpperCase()} raporu görüntülendi.`);
+    renderSelectedReport();
+  }
+
+  // --- Filtrelenmiş Veri Çekme ---
+  function getFilteredTransactions() {
+    const start = $('inpRaporStart').value;
+    const end = $('inpRaporEnd').value;
+    const account = $('selRaporAccount').value;
+    const cari = $('selRaporCari').value;
+    const category = $('selRaporCategory').value;
+
+    return cariTransactions.filter(t => {
+      if (start && t.date < start) return false;
+      if (end && t.date > end) return false;
+      if (account && t.account_id !== account) return false;
+      if (cari && t.cari_id !== cari) return false;
+      if (category && t.category !== category) return false;
+      return true;
+    });
+  }
+
+  function getFilteredInvoices() {
+    const start = $('inpRaporStart').value;
+    const end = $('inpRaporEnd').value;
+    const cari = $('selRaporCari').value;
+
+    return invoices.filter(i => {
+      if (start && i.date < start) return false;
+      if (end && i.date > end) return false;
+      if (cari && i.cariId !== cari) return false;
+      return true;
+    });
+  }
+
+  // --- 1. GÜNLÜK KASA RAPORU HESAPLAMA VE ÇİZİM ---
+  function renderKasaReport(txs) {
+    const start = $('inpRaporStart').value;
+    const end = $('inpRaporEnd').value;
+    
+    // Devir (Açılış) Bakiyesi hesapla (Seçilen tarih aralığından önceki tüm nakit hareketleri)
+    let openingBal = 0;
+    cariTransactions.forEach(t => {
+      if (t.account_id === 'MERKEZ_KASA' && start && t.date < start) {
+        const amt = parseFloat(t.amount || 0);
+        if (t.type === 'TAHSİLAT') openingBal += amt;
+        else if (t.type === 'ÖDEME') openingBal -= amt;
+      }
+    });
+
+    let totalIn = 0;
+    let totalOut = 0;
+    let running = openingBal;
+
+    const tbody = $('tblKasaRaporuBody');
+    const kasaTxs = txs.filter(t => t.account_id === 'MERKEZ_KASA').sort((a, b) => a.date.localeCompare(b.date));
+
+    if (kasaTxs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:var(--ink-soft);">Filtrelere uygun kasa hareketi bulunamadı.</td></tr>`;
+    } else {
+      tbody.innerHTML = kasaTxs.map(t => {
+        const amt = parseFloat(t.amount || 0);
+        const cari = cariAccounts.find(c => c.id === t.cari_id);
+        const cariName = cari ? cari.name : 'Genel Kasa';
+        let giris = '—';
+        let cikis = '—';
+
+        if (t.type === 'TAHSİLAT') {
+          giris = amt.toFixed(2) + ' TL';
+          totalIn += amt;
+          running += amt;
+        } else if (t.type === 'ÖDEME') {
+          cikis = amt.toFixed(2) + ' TL';
+          totalOut += amt;
+          running -= amt;
+        }
+
+        return `<tr>
+          <td>${fmtDate(t.date)}</td>
+          <td><strong>${esc(cariName)}</strong></td>
+          <td><span class="badge-status ${t.type.toLowerCase()}">${esc(t.type)}</span></td>
+          <td>${esc(t.category || 'Belirtilmemiş')}</td>
+          <td>${esc(t.notes || '—')}</td>
+          <td style="text-align:right; color:var(--success); font-weight:bold;">${giris}</td>
+          <td style="text-align:right; color:var(--accent-dark); font-weight:bold;">${cikis}</td>
+          <td style="text-align:right; font-weight:bold;">${running.toFixed(2)} TL</td>
+        </tr>`;
+      }).join('');
+    }
+
+    $('lblKasaAcilis').textContent = openingBal.toFixed(2) + ' TL';
+    $('lblKasaTahsilat').textContent = totalIn.toFixed(2) + ' TL';
+    $('lblKasaOdeme').textContent = totalOut.toFixed(2) + ' TL';
+    $('lblKasaKapanis').textContent = running.toFixed(2) + ' TL';
+  }
+
+  // --- 2. GÜNLÜK BANKA RAPORU HESAPLAMA VE ÇİZİM ---
+  function renderBankaReport(txs) {
+    const bankList = [
+      { id: 'ZİRAAT_BANKASI', name: 'Ziraat Bankası A.Ş.' },
+      { id: 'GARANTİ_BANKASI', name: 'Garanti BBVA' }
+    ];
+
+    const bankTxs = txs.filter(t => t.account_id && t.account_id !== 'MERKEZ_KASA').sort((a, b) => a.date.localeCompare(b.date));
+    
+    // Banka bazlı özet kartlarını oluştur
+    const ozetEl = $('divBankaHesapOzetleri');
+    ozetEl.innerHTML = bankList.map(bank => {
+      let balance = 0;
+      // Tüm zamanlar bakiyesi
+      cariTransactions.filter(t => t.account_id === bank.id).forEach(t => {
+        const amt = parseFloat(t.amount || 0);
+        if (t.type === 'TAHSİLAT') balance += amt;
+        else if (t.type === 'ÖDEME') balance -= amt;
+      });
+
+      return `
+        <div class="panel" style="min-height: auto; padding: 15px; border: 1.5px solid var(--line); box-shadow:none; text-align:center;">
+          <h4 style="margin:0 0 5px 0; color:var(--ink-soft);">${bank.name}</h4>
+          <div style="font-size: 20px; font-weight:bold; color:var(--accent-dark);">${balance.toFixed(2)} TL</div>
+        </div>
+      `;
+    }).join('');
+
+    const tbody = $('tblBankaRaporuBody');
+    if (bankTxs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--ink-soft);">Filtrelere uygun banka hareketi bulunamadı.</td></tr>`;
+    } else {
+      let runningBalances = {};
+      bankList.forEach(b => runningBalances[b.id] = 0);
+
+      // Başlangıç bakiyelerini hesapla
+      const start = $('inpRaporStart').value;
+      if (start) {
+        cariTransactions.forEach(t => {
+          if (t.account_id && t.account_id !== 'MERKEZ_KASA' && t.date < start) {
+            const amt = parseFloat(t.amount || 0);
+            if (!runningBalances[t.account_id]) runningBalances[t.account_id] = 0;
+            if (t.type === 'TAHSİLAT') runningBalances[t.account_id] += amt;
+            else if (t.type === 'ÖDEME') runningBalances[t.account_id] -= amt;
+          }
+        });
+      }
+
+      tbody.innerHTML = bankTxs.map(t => {
+        const amt = parseFloat(t.amount || 0);
+        const bankName = bankList.find(b => b.id === t.account_id)?.name || 'Banka Hesabı';
+        const cari = cariAccounts.find(c => c.id === t.cari_id);
+        const cariName = cari ? cari.name : 'Banka Hareketi';
+        let gelen = '—';
+        let giden = '—';
+
+        if (t.type === 'TAHSİLAT') {
+          gelen = amt.toFixed(2) + ' TL';
+          runningBalances[t.account_id] += amt;
+        } else if (t.type === 'ÖDEME') {
+          giden = amt.toFixed(2) + ' TL';
+          runningBalances[t.account_id] -= amt;
+        }
+
+        return `<tr>
+          <td>${fmtDate(t.date)}</td>
+          <td><strong>${esc(bankName)}</strong></td>
+          <td>${esc(cariName)}</td>
+          <td>${esc(t.notes || '—')} (Ref: ${esc(t.ref_no || '—')})</td>
+          <td style="text-align:right; color:var(--success); font-weight:bold;">${gelen}</td>
+          <td style="text-align:right; color:var(--accent-dark); font-weight:bold;">${giden}</td>
+          <td style="text-align:right; font-weight:bold;">${runningBalances[t.account_id].toFixed(2)} TL</td>
+        </tr>`;
+      }).join('');
+    }
+  }
+
+  // --- 3. NAKİT AKIŞI RAPORU ---
+  function renderNakitReport(txs) {
+    let realizedIn = 0;
+    let realizedOut = 0;
+    
+    // Gerçekleşenler (Tüm kasa/banka giriş çıkışları)
+    txs.forEach(t => {
+      const amt = parseFloat(t.amount || 0);
+      if (t.type === 'TAHSİLAT') realizedIn += amt;
+      else if (t.type === 'ÖDEME') realizedOut += amt;
+    });
+
+    // Beklenen Tahsilatlar (Bekleyen faturalar - 'bekleyen' durumlu satış faturaları)
+    let expectedIn = 0;
+    invoices.filter(i => i.category === 'bekleyen').forEach(i => {
+      expectedIn += parseFloat(i.amount || 0);
+    });
+
+    // Beklenen Ödemeler (Onaylanan satın alma talepleri - Bütçesi onaylanmış ödeme planı bekleyenler)
+    let expectedOut = 0;
+    purchaseRequests.forEach(r => {
+      if (['Bütçe Onaylandı', 'Ödeme Planı Hazır'].includes(r.status)) {
+        expectedOut += parseFloat(r.totalPrice || 0);
+      }
+    });
+
+    const netProj = (realizedIn + expectedIn) - (realizedOut + expectedOut);
+
+    $('lblNakitGerceklesenTahsilat').textContent = realizedIn.toFixed(2) + ' TL';
+    $('lblNakitGerceklesenOdeme').textContent = realizedOut.toFixed(2) + ' TL';
+    $('lblNakitBeklenenTahsilat').textContent = expectedIn.toFixed(2) + ' TL';
+    $('lblNakitBeklenenOdeme').textContent = expectedOut.toFixed(2) + ' TL';
+    
+    const netEl = $('lblNakitNetDurum');
+    netEl.textContent = netProj.toFixed(2) + ' TL';
+    netEl.style.color = netProj >= 0 ? 'var(--success)' : 'var(--danger)';
+
+    // Çizelge (Chart.js) güncelleme
+    if (chartNakitObj) chartNakitObj.destroy();
+    const ctx = $('chartNakitAkisi').getContext('2d');
+    chartNakitObj = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Gerçekleşen Giriş', 'Gerçekleşen Çıkış', 'Beklenen Giriş', 'Beklenen Çıkış'],
+        datasets: [{
+          label: 'Nakit Pozisyonu (TL)',
+          data: [realizedIn, realizedOut, expectedIn, expectedOut],
+          backgroundColor: ['#2ecc71', '#e74c3c', '#82e0aa', '#f1948a']
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } }
+      }
+    });
+
+    // Tablo doldurma
+    const tbody = $('tblNakitAkisiBody');
+    let items = [];
+
+    // Gerçekleşenleri ekle
+    txs.forEach(t => {
+      items.push({
+        date: t.date,
+        type: 'Gerçekleşen ' + t.type,
+        detail: cariAccounts.find(c => c.id === t.cari_id)?.name || 'Cari Hesap',
+        notes: t.notes || '',
+        in: t.type === 'TAHSİLAT' ? t.amount : 0,
+        out: t.type === 'ÖDEME' ? t.amount : 0
+      });
+    });
+
+    // Beklenen faturaları ekle
+    invoices.filter(i => i.category === 'bekleyen').forEach(i => {
+      items.push({
+        date: i.date,
+        type: 'Bekleyen Tahsilat',
+        detail: cariAccounts.find(c => c.id === i.cariId)?.name || 'Cari Hesap',
+        notes: `Fatura No: ${i.invoiceNo} (${i.notes || ''})`,
+        in: i.amount,
+        out: 0
+      });
+    });
+
+    // Beklenen satın almaları ekle
+    purchaseRequests.filter(r => ['Bütçe Onaylandı', 'Ödeme Planı Hazır'].includes(r.status)).forEach(r => {
+      items.push({
+        date: r.date,
+        type: 'Bekleyen Ödeme',
+        detail: `${r.dept} Birimi`,
+        notes: `Satın Alma: ${r.product}`,
+        in: 0,
+        out: r.totalPrice
+      });
+    });
+
+    items.sort((a, b) => a.date.localeCompare(b.date));
+
+    let netPos = 0;
+    if (items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--ink-soft);">Nakit akış hareketi bulunmamaktadır.</td></tr>`;
+    } else {
+      tbody.innerHTML = items.map(item => {
+        netPos += (item.in - item.out);
+        return `<tr>
+          <td>${fmtDate(item.date)}</td>
+          <td><strong>${item.type}</strong></td>
+          <td>${esc(item.detail)}</td>
+          <td>${esc(item.notes)}</td>
+          <td style="text-align:right; color:var(--success);">${item.in > 0 ? item.in.toFixed(2) + ' TL' : '—'}</td>
+          <td style="text-align:right; color:var(--accent-dark);">${item.out > 0 ? item.out.toFixed(2) + ' TL' : '—'}</td>
+          <td style="text-align:right; font-weight:bold; color:${netPos >= 0 ? 'var(--success)' : 'var(--accent-dark)'};">${netPos.toFixed(2)} TL</td>
+        </tr>`;
+      }).join('');
+    }
+  }
+
+  // --- 4. GELİR - GİDER RAPORU ---
+  function renderGelirGiderReport(txs) {
+    let totals = {
+      SATIS_GELIRI: 0,
+      HIZMET_GELIRI: 0,
+      DIGER_GELIR: 0,
+      SATIS_MALIYETI: 0,
+      FAALIYET_GIDERI: 0,
+      DIGER_GIDER: 0
+    };
+
+    txs.forEach(t => {
+      const amt = parseFloat(t.amount || 0);
+      if (t.category && totals.hasOwnProperty(t.category)) {
+        totals[t.category] += amt;
+      }
+    });
+
+    // Fatura verilerinden de giderleri kategorileştirip ekleyelim
+    invoices.forEach(i => {
+      const amt = parseFloat(i.amount || 0);
+      if (i.category === 'malzeme') totals.SATIS_MALIYETI += amt;
+      else if (['hizmet', 'nakliye'].includes(i.category)) totals.FAALIYET_GIDERI += amt;
+      else if (['elektrik', 'su', 'dogalgaz'].includes(i.category)) totals.FAALIYET_GIDERI += amt;
+    });
+
+    const totalGelir = totals.SATIS_GELIRI + totals.HIZMET_GELIRI + totals.DIGER_GELIR;
+    const totalGider = totals.SATIS_MALIYETI + totals.FAALIYET_GIDERI + totals.DIGER_GIDER;
+    const netResult = totalGelir - totalGider;
+
+    $('lblGelirGiderTotalGelir').textContent = totalGelir.toFixed(2) + ' TL';
+    $('lblGelirGiderTotalGider').textContent = totalGider.toFixed(2) + ' TL';
+    
+    const resultEl = $('lblGelirGiderNet');
+    resultEl.textContent = netResult.toFixed(2) + ' TL';
+    resultEl.style.color = netResult >= 0 ? 'var(--success)' : 'var(--danger)';
+
+    // Grafik (Pie Chart) çizim
+    if (chartGelirGiderPasta) chartGelirGiderPasta.destroy();
+    const ctx = $('chartGelirGiderPasta').getContext('2d');
+    chartGelirGiderPasta = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Satış Maliyeti', 'Faaliyet Giderleri', 'Diğer Giderler'],
+        datasets: [{
+          data: [totals.SATIS_MALIYETI, totals.FAALIYET_GIDERI, totals.DIGER_GIDER],
+          backgroundColor: ['#e74c3c', '#f39c12', '#95a5a6']
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    });
+
+    // Tablo doldurma
+    const tbody = $('tblGelirGiderBody');
+    const categoriesMap = {
+      SATIS_GELIRI: ['Gelir', 'Satış Gelirleri'],
+      HIZMET_GELIRI: ['Gelir', 'Hizmet Gelirleri'],
+      DIGER_GELIR: ['Gelir', 'Diğer Gelirler'],
+      SATIS_MALIYETI: ['Gider', 'Satış Maliyetleri'],
+      FAALIYET_GIDERI: ['Gider', 'Faaliyet Giderleri'],
+      DIGER_GIDER: ['Gider', 'Diğer Giderler']
+    };
+
+    tbody.innerHTML = Object.keys(totals).map(key => {
+      const isGelir = categoriesMap[key][0] === 'Gelir';
+      return `<tr>
+        <td>Dönem İçi</td>
+        <td><strong>${categoriesMap[key][0]}</strong></td>
+        <td>${categoriesMap[key][1]}</td>
+        <td>Filtrelenen aralıktaki toplam hareketler</td>
+        <td style="text-align:right; font-weight:bold; color:${isGelir ? 'var(--success)' : 'var(--accent-dark)'};">${totals[key].toFixed(2)} TL</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // --- 5. KÂR - ZARAR RAPORU ---
+  function renderKarZararReport(txs) {
+    const start = $('inpRaporStart').value;
+    const end = $('inpRaporEnd').value;
+    $('lblKarZararPeriod').textContent = (start && end) ? `${fmtDate(start)} - ${fmtDate(end)}` : 'Tüm Dönemler';
+
+    let sG = 0, hG = 0, sM = 0, fG = 0, dG = 0, dGi = 0;
+
+    txs.forEach(t => {
+      const amt = parseFloat(t.amount || 0);
+      if (t.category === 'SATIS_GELIRI') sG += amt;
+      else if (t.category === 'HIZMET_GELIRI') hG += amt;
+      else if (t.category === 'SATIS_MALIYETI') sM += amt;
+      else if (t.category === 'FAALIYET_GIDERI') fG += amt;
+      else if (t.category === 'DIGER_GELIR') dG += amt;
+      else if (t.category === 'DIGER_GIDER') dGi += amt;
+    });
+
+    // Fatura verileri
+    invoices.forEach(i => {
+      const amt = parseFloat(i.amount || 0);
+      if (i.category === 'malzeme') sM += amt;
+      else if (['hizmet', 'nakliye', 'elektrik', 'su', 'dogalgaz'].includes(i.category)) fG += amt;
+    });
+
+    const brutSales = sG + hG;
+    const salesCost = sM;
+    const brutKar = brutSales - salesCost;
+    const faaliyetGid = fG;
+    const faaliyetKar = brutKar - faaliyetGid;
+    const digerNet = dG - dGi;
+    const netKar = faaliyetKar + digerNet;
+
+    $('valKzSatisGelirleri').textContent = brutSales.toFixed(2) + ' TL';
+    $('valKzSatisG').textContent = sG.toFixed(2) + ' TL';
+    $('valKzHizmetG').textContent = hG.toFixed(2) + ' TL';
+    $('valKzSatisMaliyetleri').textContent = salesCost.toFixed(2) + ' TL';
+    $('valKzSatisM').textContent = sM.toFixed(2) + ' TL';
+    $('valKzBrutKar').textContent = brutKar.toFixed(2) + ' TL';
+    $('valKzFaaliyetGiderleri').textContent = faaliyetGid.toFixed(2) + ' TL';
+    $('valKzFaaliyetG').textContent = fG.toFixed(2) + ' TL';
+    $('valKzFaaliyetKar').textContent = faaliyetKar.toFixed(2) + ' TL';
+    $('valKzDigerNet').textContent = digerNet.toFixed(2) + ' TL';
+    $('valKzDigerG').textContent = dG.toFixed(2) + ' TL';
+    $('valKzDigerGi').textContent = dGi.toFixed(2) + ' TL';
+    
+    const netEl = $('valKzNetKar');
+    netEl.textContent = netKar.toFixed(2) + ' TL';
+    netEl.style.color = netKar >= 0 ? 'var(--success)' : 'var(--danger)';
+  }
+
+  // --- 6. BİLANÇO RAPORU ---
+  function renderBilancoReport() {
+    let kasaBal = 0;
+    let bankaBal = 0;
+    
+    // Kasa ve banka bakiyeleri
+    cariTransactions.forEach(t => {
+      const amt = parseFloat(t.amount || 0);
+      if (t.account_id === 'MERKEZ_KASA') {
+        if (t.type === 'TAHSİLAT') kasaBal += amt;
+        else if (t.type === 'ÖDEME') kasaBal -= amt;
+      } else if (t.account_id) {
+        if (t.type === 'TAHSİLAT') bankaBal += amt;
+        else if (t.type === 'ÖDEME') bankaBal -= amt;
+      }
+    });
+
+    let alacaklar = 0;
+    let borclar = 0;
+
+    cariAccounts.forEach(c => {
+      const bal = calculateCariBalance(c.id);
+      if (bal > 0) alacaklar += bal;
+      else if (bal < 0) borclar += Math.abs(bal);
+    });
+
+    const donenVarliklar = kasaBal + bankaBal + alacaklar;
+    const duranVarliklar = 150000.00; // Sabit Tesis Varlığı
+    const toplamAktif = donenVarliklar + duranVarliklar;
+
+    const kisaVadeliBorc = borclar;
+    const uzunVadeliBorc = 50000.00; // Sabit Banka Kredisi
+    const ozSermaye = toplamAktif - (kisaVadeliBorc + uzunVadeliBorc);
+
+    $('valBKasa').textContent = kasaBal.toFixed(2) + ' TL';
+    $('valBBankalar').textContent = bankaBal.toFixed(2) + ' TL';
+    $('valBAlacaklar').textContent = alacaklar.toFixed(2) + ' TL';
+    $('valBDonenVarliklar').textContent = donenVarliklar.toFixed(2) + ' TL';
+    $('valBToplamAktif').textContent = toplamAktif.toFixed(2) + ' TL';
+    $('valBBorclar').textContent = borclar.toFixed(2) + ' TL';
+    $('valBKisaVadeliBorc').textContent = kisaVadeliBorc.toFixed(2) + ' TL';
+    
+    $('valBOzSermaye').textContent = ozSermaye.toFixed(2) + ' TL';
+    $('valBSermayeKar').textContent = ozSermaye.toFixed(2) + ' TL';
+    $('valBToplamPasif').textContent = toplamAktif.toFixed(2) + ' TL';
+  }
+
+  // --- 7. BORÇ - ALACAK RAPORU ---
+  function renderBorcAlacakReport() {
+    let alacakToplam = 0;
+    let borcToplam = 0;
+    let age0 = 0, age30 = 0, age60 = 0, age90 = 0, age120 = 0;
+    let borc0 = 0, borc30 = 0, borc60 = 0, borc90 = 0, borc120 = 0;
+
+    const tbody = $('tblBorcAlacakRaporuBody');
+    
+    const rows = cariAccounts.map(c => {
+      const bal = calculateCariBalance(c.id);
+      let borcVal = 0;
+      let alacakVal = 0;
+
+      // Cari hareketlerinden yaşlandırma hesabı
+      const now = new Date();
+      cariTransactions.filter(t => t.cari_id === c.id).forEach(t => {
+        const tDate = new Date(t.date);
+        const diffDays = Math.floor((now - tDate) / (1000 * 60 * 60 * 24));
+        const amt = parseFloat(t.amount || 0);
+
+        if (t.type === 'BORÇ' || t.type === 'ÖDEME') {
+          if (diffDays <= 0) borc0 += amt;
+          else if (diffDays <= 30) borc30 += amt;
+          else if (diffDays <= 60) borc60 += amt;
+          else if (diffDays <= 90) borc90 += amt;
+          else borc120 += amt;
+        } else if (t.type === 'ALACAK' || t.type === 'TAHSİLAT') {
+          if (diffDays <= 0) age0 += amt;
+          else if (diffDays <= 30) age30 += amt;
+          else if (diffDays <= 60) age60 += amt;
+          else if (diffDays <= 90) age90 += amt;
+          else age120 += amt;
+        }
+      });
+
+      if (bal > 0) {
+        alacakVal = bal;
+        alacakToplam += bal;
+      } else if (bal < 0) {
+        borcVal = Math.abs(bal);
+        borcToplam += borcVal;
+      }
+
+      let riskColor = '#27ae60';
+      let riskText = 'Düşük Risk';
+      if (bal > 100000) {
+        riskColor = '#e74c3c';
+        riskText = 'Yüksek Risk';
+      } else if (bal > 50000) {
+        riskColor = '#f39c12';
+        riskText = 'Orta Risk';
+      }
+
+      return `<tr>
+        <td style="font-family:monospace;">${esc(c.code)}</td>
+        <td><strong>${esc(c.name)}</strong></td>
+        <td>${esc(c.type)}</td>
+        <td style="text-align:right; color:var(--accent-dark);">${borcVal > 0 ? borcVal.toFixed(2) + ' TL' : '—'}</td>
+        <td style="text-align:right; color:var(--success);">${alacakVal > 0 ? alacakVal.toFixed(2) + ' TL' : '—'}</td>
+        <td style="text-align:right; font-weight:bold; color:${bal > 0 ? 'var(--success)' : (bal < 0 ? 'var(--accent-dark)' : 'var(--ink)')};">${bal.toFixed(2)} TL</td>
+        <td style="text-align:center;"><span style="background:${riskColor}; color:#fff; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:bold;">${riskText}</span></td>
+      </tr>`;
+    });
+
+    tbody.innerHTML = rows.length === 0 
+      ? `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--ink-soft);">Kayıtlı cari hesap bulunmamaktadır.</td></tr>` 
+      : rows.join('');
+
+    // Yaşlandırma Analizi Değerleri
+    $('lblYasAlacak0').textContent = age0.toFixed(2);
+    $('lblYasAlacak30').textContent = age30.toFixed(2);
+    $('lblYasAlacak60').textContent = age60.toFixed(2);
+    $('lblYasAlacak90').textContent = age90.toFixed(2);
+    $('lblYasAlacak120').textContent = age120.toFixed(2);
+
+    $('lblYasBorc0').textContent = borc0.toFixed(2);
+    $('lblYasBorc30').textContent = borc30.toFixed(2);
+    $('lblYasBorc60').textContent = borc60.toFixed(2);
+    $('lblYasBorc90').textContent =  borc90.toFixed(2);
+    $('lblYasBorc120').textContent = borc120.toFixed(2);
+
+    // Borç-Alacak Pasta Grafiği
+    if (chartBorcAlacakPasta) chartBorcAlacakPasta.destroy();
+    const ctx = $('chartBorcAlacakPasta').getContext('2d');
+    chartBorcAlacakPasta = new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: ['Toplam Alacak', 'Toplam Borç'],
+        datasets: [{
+          data: [alacakToplam, borcToplam],
+          backgroundColor: ['#2ecc71', '#e74c3c']
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    });
+  }
+
+  // --- 8. AUDIT LOG RAPORU ---
+  function renderAuditReport() {
+    const tbody = $('tblAuditRaporuBody');
+    if (!tbody) return;
+
+    if (auditLogs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--ink-soft);">Sistem logu bulunmamaktadır.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = auditLogs.map(l => {
+      return `<tr>
+        <td style="font-size:11px; color:var(--ink-soft);">${new Date(l.time).toLocaleString('tr-TR')}</td>
+        <td style="font-weight:bold;">${esc(l.user)}</td>
+        <td><span class="badge-status her-ikisi">${esc(l.role)}</span></td>
+        <td><strong>${esc(l.action)}</strong></td>
+        <td style="font-size:12px;">${esc(l.detail)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // --- Rapor Seçimine Göre Gösterim ---
+  function renderSelectedReport() {
+    const txs = getFilteredTransactions();
+    
+    if (currentRaporSubtab === 'kasa') renderKasaReport(txs);
+    else if (currentRaporSubtab === 'banka') renderBankaReport(txs);
+    else if (currentRaporSubtab === 'nakit') renderNakitReport(txs);
+    else if (currentRaporSubtab === 'gelirgider') renderGelirGiderReport(txs);
+    else if (currentRaporSubtab === 'karzarar') renderKarZararReport(txs);
+    else if (currentRaporSubtab === 'bilanco') renderBilancoReport();
+    else if (currentRaporSubtab === 'borcalacak') renderBorcAlacakReport();
+    else if (currentRaporSubtab === 'audit') renderAuditReport();
+  }
+
+  // --- DASHBOARD ÖZET KARTLARINI RENDER ETME ---
+  function renderFinansDashboard() {
+    const todayStr = todayISO();
+    
+    // Kasa / Banka Günlük Bakiyeleri
+    let kasaBakiye = 0;
+    let bankaBakiye = 0;
+
+    cariTransactions.forEach(t => {
+      const amt = parseFloat(t.amount || 0);
+      if (t.account_id === 'MERKEZ_KASA') {
+        if (t.type === 'TAHSİLAT') kasaBakiye += amt;
+        else if (t.type === 'ÖDEME') kasaBakiye -= amt;
+      } else if (t.account_id) {
+        if (t.type === 'TAHSİLAT') bankaBakiye += amt;
+        else if (t.type === 'ÖDEME') bankaBakiye -= amt;
+      }
+    });
+
+    // Toplam Gelir, Gider ve Kâr
+    let totalGelir = 0;
+    let totalGider = 0;
+    
+    cariTransactions.forEach(t => {
+      const amt = parseFloat(t.amount || 0);
+      if (t.type === 'TAHSİLAT') totalGelir += amt;
+      else if (t.type === 'ÖDEME') totalGider += amt;
+    });
+
+    invoices.forEach(i => {
+      const amt = parseFloat(i.amount || 0);
+      if (i.category === 'kesilen') totalGelir += amt;
+      else if (i.category !== 'bekleyen' && i.category !== 'iptal') totalGider += amt;
+    });
+
+    const netKar = totalGelir - totalGider;
+
+    // Alacak & Borç Bakiyeleri
+    let totalAlacak = 0;
+    let totalBorc = 0;
+    cariAccounts.forEach(c => {
+      const bal = calculateCariBalance(c.id);
+      if (bal > 0) totalAlacak += bal;
+      else if (bal < 0) totalBorc += Math.abs(bal);
+    });
+
+    // Bekleyenler
+    let bekleyenTahsilat = 0;
+    invoices.filter(i => i.category === 'bekleyen').forEach(i => {
+      bekleyenTahsilat += i.amount;
+    });
+
+    let bekleyenOdeme = 0;
+    purchaseRequests.filter(r => ['Talep Oluşturuldu', 'Muhasebe İncelemesinde'].includes(r.status)).forEach(r => {
+      bekleyenOdeme += r.totalPrice;
+    });
+
+    const grid = $('finansStatsGrid');
+    if (!grid) return;
+
+    grid.innerHTML = `
+      <div class="stat-card" style="border-left: 4px solid #2ecc71;">
+        <h4 style="margin:0; font-size:11px; color:var(--ink-soft);">GÜNLÜK KASA BAKİYESİ</h4>
+        <div class="val" style="font-size:18px; margin-top:5px; font-weight:bold;">${kasaBakiye.toFixed(2)} TL</div>
+      </div>
+      <div class="stat-card" style="border-left: 4px solid #3498db;">
+        <h4 style="margin:0; font-size:11px; color:var(--ink-soft);">GÜNLÜK BANKA BAKİYESİ</h4>
+        <div class="val" style="font-size:18px; margin-top:5px; font-weight:bold;">${bankaBakiye.toFixed(2)} TL</div>
+      </div>
+      <div class="stat-card" style="border-left: 4px solid #2ecc71;">
+        <h4 style="margin:0; font-size:11px; color:var(--ink-soft);">TOPLAM GELİR</h4>
+        <div class="val" style="font-size:18px; margin-top:5px; font-weight:bold; color:var(--success);">${totalGelir.toFixed(2)} TL</div>
+      </div>
+      <div class="stat-card" style="border-left: 4px solid #e74c3c;">
+        <h4 style="margin:0; font-size:11px; color:var(--ink-soft);">TOPLAM GİDER</h4>
+        <div class="val" style="font-size:18px; margin-top:5px; font-weight:bold; color:var(--danger);">${totalGider.toFixed(2)} TL</div>
+      </div>
+      <div class="stat-card" style="border-left: 4px solid #9b59b6;">
+        <h4 style="margin:0; font-size:11px; color:var(--ink-soft);">NET KÂR</h4>
+        <div class="val" style="font-size:18px; margin-top:5px; font-weight:bold; color:${netKar >= 0 ? 'var(--success)' : 'var(--danger)'};">${netKar.toFixed(2)} TL</div>
+      </div>
+      <div class="stat-card" style="border-left: 4px solid #1abc9c;">
+        <h4 style="margin:0; font-size:11px; color:var(--ink-soft);">TOPLAM ALACAK</h4>
+        <div class="val" style="font-size:18px; margin-top:5px; font-weight:bold; color:var(--success);">${totalAlacak.toFixed(2)} TL</div>
+      </div>
+      <div class="stat-card" style="border-left: 4px solid #e67e22;">
+        <h4 style="margin:0; font-size:11px; color:var(--ink-soft);">TOPLAM BORÇ</h4>
+        <div class="val" style="font-size:18px; margin-top:5px; font-weight:bold; color:var(--danger);">${totalBorc.toFixed(2)} TL</div>
+      </div>
+      <div class="stat-card" style="border-left: 4px solid #f1c40f;">
+        <h4 style="margin:0; font-size:11px; color:var(--ink-soft);">BEKLEYEN TAHSİLAT</h4>
+        <div class="val" style="font-size:18px; margin-top:5px; font-weight:bold;">${bekleyenTahsilat.toFixed(2)} TL</div>
+      </div>
+      <div class="stat-card" style="border-left: 4px solid #e74c3c;">
+        <h4 style="margin:0; font-size:11px; color:var(--ink-soft);">BEKLEYEN ÖDEME</h4>
+        <div class="val" style="font-size:18px; margin-top:5px; font-weight:bold;">${bekleyenOdeme.toFixed(2)} TL</div>
+      </div>
+    `;
+  }
+
+  // --- DIŞA AKTARMA VE YAZDIRMA DESTEĞİ ---
+  function setupExportEvents() {
+    const btnCSV = $('btnExportCSV');
+    const newBtnCSV = btnCSV.cloneNode(true);
+    btnCSV.parentNode.replaceChild(newBtnCSV, btnCSV);
+    newBtnCSV.addEventListener('click', () => {
+      exportToCSV();
+    });
+
+    const btnExcel = $('btnExportExcel');
+    const newBtnExcel = btnExcel.cloneNode(true);
+    btnExcel.parentNode.replaceChild(newBtnExcel, btnExcel);
+    newBtnExcel.addEventListener('click', () => {
+      exportToExcel();
+    });
+
+    const btnPDF = $('btnExportPDF');
+    const newBtnPDF = btnPDF.cloneNode(true);
+    btnPDF.parentNode.replaceChild(newBtnPDF, btnPDF);
+    newBtnPDF.addEventListener('click', () => {
+      saveAuditLog('PDF / Yazdırma', `${currentRaporSubtab.toUpperCase()} raporu yazdırıldı.`);
+      window.print();
+    });
+  }
+
+  function exportToCSV() {
+    let rows = [];
+    const tab = currentRaporSubtab;
+
+    if (tab === 'kasa') {
+      rows.push(['Tarih', 'Cari Hesap', 'Islem Turu', 'Kategori', 'Aciklama', 'Tutar']);
+      getFilteredTransactions().filter(t => t.account_id === 'MERKEZ_KASA').forEach(t => {
+        const cari = cariAccounts.find(c => c.id === t.cari_id)?.name || 'Genel Kasa';
+        rows.push([t.date, cari, t.type, t.category || '', t.notes || '', t.amount]);
+      });
+    } else if (tab === 'banka') {
+      rows.push(['Tarih', 'Banka Hesabi', 'Cari Hesap', 'Aciklama', 'Tur', 'Tutar']);
+      getFilteredTransactions().filter(t => t.account_id && t.account_id !== 'MERKEZ_KASA').forEach(t => {
+        const cari = cariAccounts.find(c => c.id === t.cari_id)?.name || 'Genel Banka';
+        rows.push([t.date, t.account_id, cari, t.notes || '', t.type, t.amount]);
+      });
+    } else {
+      rows.push(['Rapor Kalemi', 'Tutar']);
+      rows.push(['Veri', 'Detaylar PDF veya Excel olarak goruntulenebilir']);
+    }
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")).join("\n");
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `finans_rapor_${tab}_${todayISO()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    saveAuditLog('CSV Aktarımı', `${tab.toUpperCase()} raporu CSV olarak indirildi.`);
+    showToast('CSV dosyası başarıyla indirildi.');
+  }
+
+  function exportToExcel() {
+    // Excel için basit HTML formatını XLS olarak kaydetme tekniği
+    const tab = currentRaporSubtab;
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"></head>
+      <body>
+        <h2>Finans Raporu - ${tab.toUpperCase()} (${todayISO()})</h2>
+        <table border="1">
+    `;
+
+    let activeTableId = '';
+    if (tab === 'kasa') activeTableId = 'tblKasaRaporuBody';
+    else if (tab === 'banka') activeTableId = 'tblBankaRaporuBody';
+    else if (tab === 'nakit') activeTableId = 'tblNakitAkisiBody';
+    else if (tab === 'gelirgider') activeTableId = 'tblGelirGiderBody';
+    else if (tab === 'karzarar') activeTableId = 'tblKarZararTablosu';
+    else if (tab === 'borcalacak') activeTableId = 'tblBorcAlacakRaporuBody';
+    else if (tab === 'audit') activeTableId = 'tblAuditRaporuBody';
+
+    const tableBody = $(activeTableId);
+    if (tableBody) {
+      html += tableBody.innerHTML;
+    } else {
+      html += `<tr><td>Veri Bulunmamaktadir</td></tr>`;
+    }
+
+    html += '</table></body></html>';
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `finans_rapor_${tab}_${todayISO()}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    saveAuditLog('Excel Aktarımı', `${tab.toUpperCase()} raporu Excel (XLS) olarak indirildi.`);
+    showToast('Excel dosyası başarıyla indirildi.');
+  }
+
   // --- Initializer ---
   async function init() {
     checkSession();
     await loadCariData();
     await loadAccountingRecords();
+    
+    // Rapor modülü ilk sekme kontrolü
+    if ($('panel-raporlar')) {
+      await loadAuditLogs();
+    }
   }
   init();
 })();

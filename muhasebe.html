@@ -42,6 +42,7 @@
       <div class="tab" data-muhasebe-tab="fatura">FATURA YÖNETİMİ</div>
       <div class="tab" data-muhasebe-tab="doviz">DÖVİZ & KUR FARKI</div>
       <div class="tab" data-muhasebe-tab="satinalma">SATIN ALMA</div>
+      <div class="tab" data-muhasebe-tab="raporlar">FİNANS RAPORLARI</div>
     </div>
 
     <!-- CONTRACTS PANEL -->
@@ -417,6 +418,16 @@
                 <input type="number" step="0.01" id="inpTahsilatAmount" placeholder="0.00">
               </div>
               <div class="cell">
+                <label>Kategori</label>
+                <div class="select-wrap">
+                  <select id="selTahsilatCategory">
+                    <option value="SATIS_GELIRI">Satış Geliri</option>
+                    <option value="HIZMET_GELIRI">Hizmet Geliri</option>
+                    <option value="DIGER_GELIR">Diğer Gelirler</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cell">
                 <label>Belge / Referans No</label>
                 <input type="text" id="inpTahsilatRef" placeholder="örn. REF-1092">
               </div>
@@ -453,6 +464,26 @@
               <div class="cell">
                 <label>İşlem Tarihi</label>
                 <input type="date" id="inpOdemeDate">
+              </div>
+              <div class="cell">
+                <label>Kasa / Banka Hesabı</label>
+                <div class="select-wrap">
+                  <select id="selOdemeAccount">
+                    <option value="MERKEZ_KASA">Merkez Kasa (Nakit)</option>
+                    <option value="ZİRAAT_BANKASI">Ziraat Bankası A.Ş.</option>
+                    <option value="GARANTİ_BANKASI">Garanti BBVA</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cell">
+                <label>Kategori</label>
+                <div class="select-wrap">
+                  <select id="selOdemeCategory">
+                    <option value="SATIS_MALIYETI">Satış Maliyeti</option>
+                    <option value="FAALIYET_GIDERI">Faaliyet Gideri</option>
+                    <option value="DIGER_GIDER">Diğer Giderler</option>
+                  </select>
+                </div>
               </div>
               <div class="cell">
                 <label>Tutar (TL)</label>
@@ -847,6 +878,366 @@
           <div class="tb-actions" style="justify-content: flex-end; padding-top: 10px;">
             <button class="btn-submit" id="btnSavePurchaseRequest" style="width:100%;">Talebi Gönder</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FINANS RAPORLARI PANEL -->
+    <div class="panel hidden" id="panel-raporlar" style="padding: 20px;">
+      <!-- Dashboard Stats Area -->
+      <h3 style="font-family:'Montserrat',sans-serif; margin-bottom:15px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Finansal Raporlar & Dashboard</h3>
+      
+      <!-- Stats Cards -->
+      <div class="stats-grid" id="finansStatsGrid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 25px;">
+        <!-- Dynamically filled with Javascript -->
+      </div>
+
+      <!-- Filters block -->
+      <div class="titleblock" style="max-width: 100%; margin-bottom: 25px; border: 1.5px solid var(--line); padding: 15px; border-radius: 8px;">
+        <div class="tb-top" style="background:var(--slate-800); padding: 5px 10px; font-size:12px; font-weight:700; color:#fff; display:flex; justify-content:space-between; align-items:center;">
+          <span>Gelişmiş Rapor Filtreleri</span>
+          <span style="font-size:11px; font-weight:normal;" id="lblSelectedUserRole">Rol: Misafir</span>
+        </div>
+        <div class="tb-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px; padding-top:10px;">
+          <div class="cell">
+            <label>Başlangıç Tarihi</label>
+            <input type="date" id="inpRaporStart" style="padding:6px; font-size:13px; border:1px solid var(--grid-line); background:var(--paper); width:100%;">
+          </div>
+          <div class="cell">
+            <label>Bitiş Tarihi</label>
+            <input type="date" id="inpRaporEnd" style="padding:6px; font-size:13px; border:1px solid var(--grid-line); background:var(--paper); width:100%;">
+          </div>
+          <div class="cell">
+            <label>Şube / Proje</label>
+            <div class="select-wrap">
+              <select id="selRaporSube" style="padding:6px; font-size:13px; width:100%;">
+                <option value="">Tüm Şubeler</option>
+                <option value="AKSA_MERKEZ">Aksa Merkez</option>
+                <option value="FABRIKA_SUBE">Fabrika Şubesi</option>
+                <option value="DIS_PROJE">Dış Projeler</option>
+              </select>
+            </div>
+          </div>
+          <div class="cell">
+            <label>Kasa / Banka</label>
+            <div class="select-wrap">
+              <select id="selRaporAccount" style="padding:6px; font-size:13px; width:100%;">
+                <option value="">Tüm Hesaplar</option>
+                <option value="MERKEZ_KASA">Merkez Kasa (Nakit)</option>
+                <option value="ZİRAAT_BANKASI">Ziraat Bankası A.Ş.</option>
+                <option value="GARANTİ_BANKASI">Garanti BBVA</option>
+              </select>
+            </div>
+          </div>
+          <div class="cell">
+            <label>Cari Hesap</label>
+            <div class="select-wrap">
+              <select id="selRaporCari" style="padding:6px; font-size:13px; width:100%;">
+                <option value="">Tüm Cariler</option>
+              </select>
+            </div>
+          </div>
+          <div class="cell">
+            <label>Kategori</label>
+            <div class="select-wrap">
+              <select id="selRaporCategory" style="padding:6px; font-size:13px; width:100%;">
+                <option value="">Tüm Kategoriler</option>
+                <option value="SATIS_GELIRI">Satış Geliri</option>
+                <option value="HIZMET_GELIRI">Hizmet Geliri</option>
+                <option value="SATIS_MALIYETI">Satış Maliyeti</option>
+                <option value="FAALIYET_GIDERI">Faaliyet Gideri</option>
+                <option value="DIGER_GELIR">Diğer Gelirler</option>
+                <option value="DIGER_GIDER">Diğer Giderler</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
+          <button class="btn-cancel-edit" id="btnFilterRapor" style="height:35px; padding:0 15px; margin:0;">Filtrele</button>
+          <button class="btn-cancel-edit" id="btnExportCSV" style="height:35px; padding:0 10px; margin:0; background:#f39c12; color:#fff; border-color:#f39c12;">CSV</button>
+          <button class="btn-cancel-edit" id="btnExportExcel" style="height:35px; padding:0 10px; margin:0; background:#27ae60; color:#fff; border-color:#27ae60;">Excel</button>
+          <button class="btn-cancel-edit" id="btnExportPDF" style="height:35px; padding:0 10px; margin:0; background:#c0392b; color:#fff; border-color:#c0392b;">PDF / Yazdır</button>
+        </div>
+      </div>
+
+      <!-- Report Tabs -->
+      <div class="tabs" style="border-bottom: 1.5px solid var(--line); margin-bottom: 20px; overflow-x:auto;">
+        <div class="tab active" data-rapor-subtab="kasa" style="font-size:11px; padding:6px 12px; white-space:nowrap;">1. GÜNLÜK KASA</div>
+        <div class="tab" data-rapor-subtab="banka" style="font-size:11px; padding:6px 12px; white-space:nowrap;">2. GÜNLÜK BANKA</div>
+        <div class="tab" data-rapor-subtab="nakit" style="font-size:11px; padding:6px 12px; white-space:nowrap;">3. NAKİT AKIŞI</div>
+        <div class="tab" data-rapor-subtab="gelirgider" style="font-size:11px; padding:6px 12px; white-space:nowrap;">4. GELİR - GİDER</div>
+        <div class="tab" data-rapor-subtab="karzarar" style="font-size:11px; padding:6px 12px; white-space:nowrap;">5. KÂR - ZARAR</div>
+        <div class="tab" data-rapor-subtab="bilanco" style="font-size:11px; padding:6px 12px; white-space:nowrap;">6. BİLANÇO</div>
+        <div class="tab" data-rapor-subtab="borcalacak" style="font-size:11px; padding:6px 12px; white-space:nowrap;">7. BORÇ - ALACAK</div>
+        <div class="tab" data-rapor-subtab="audit" id="tabRaporAudit" style="font-size:11px; padding:6px 12px; white-space:nowrap; display:none;">AUDIT LOG</div>
+      </div>
+
+      <!-- Content Area for Sub Rapor -->
+      <!-- 1. KASA RAPORU -->
+      <div class="rapor-subpanel" id="subpanel-rapor-kasa">
+        <div style="display:flex; justify-content:space-between; background:var(--paper); padding:12px; border-radius:6px; margin-bottom:15px;">
+          <div>Açılış Bakiyesi: <strong id="lblKasaAcilis">0.00 TL</strong></div>
+          <div>Toplam Tahsilat: <strong id="lblKasaTahsilat" style="color:var(--success);">0.00 TL</strong></div>
+          <div>Toplam Ödeme: <strong id="lblKasaOdeme" style="color:var(--accent-dark);">0.00 TL</strong></div>
+          <div>Kapanış Bakiyesi: <strong id="lblKasaKapanis">0.00 TL</strong></div>
+        </div>
+        <div class="table-responsive">
+          <table class="drafts-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+                <th style="padding: 10px;">Tarih</th>
+                <th style="padding: 10px;">Cari Hesap</th>
+                <th style="padding: 10px;">İşlem Türü</th>
+                <th style="padding: 10px;">Kategori</th>
+                <th style="padding: 10px;">Açıklama</th>
+                <th style="padding: 10px; text-align:right;">Giriş (+)</th>
+                <th style="padding: 10px; text-align:right;">Çıkış (-)</th>
+                <th style="padding: 10px; text-align:right;">Kasa Bakiye</th>
+              </tr>
+            </thead>
+            <tbody id="tblKasaRaporuBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 2. BANKA RAPORU -->
+      <div class="rapor-subpanel hidden" id="subpanel-rapor-banka">
+        <div class="stats-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:15px;" id="divBankaHesapOzetleri">
+          <!-- Hesap bazlı banka özetleri dinamik dolacak -->
+        </div>
+        <div class="table-responsive">
+          <table class="drafts-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+                <th style="padding: 10px;">Tarih</th>
+                <th style="padding: 10px;">Banka Hesabı</th>
+                <th style="padding: 10px;">Cari Hesap</th>
+                <th style="padding: 10px;">Açıklama / Ref</th>
+                <th style="padding: 10px; text-align:right;">Gelen EFT/Havale</th>
+                <th style="padding: 10px; text-align:right;">Giden EFT/Havale</th>
+                <th style="padding: 10px; text-align:right;">Banka Bakiye</th>
+              </tr>
+            </thead>
+            <tbody id="tblBankaRaporuBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 3. NAKİT AKIŞI -->
+      <div class="rapor-subpanel hidden" id="subpanel-rapor-nakit">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
+          <div class="panel" style="min-height:auto; border:1px solid var(--line); padding:15px; box-shadow:none;">
+            <h4 style="margin:0 0 10px 0;">Pozitif/Negatif Nakit Durum Analizi</h4>
+            <div style="height:200px;"><canvas id="chartNakitAkisi"></canvas></div>
+          </div>
+          <div class="panel" style="min-height:auto; border:1px solid var(--line); padding:15px; box-shadow:none; display:flex; flex-direction:column; justify-content:center;">
+            <h4 style="margin:0 0 10px 0;">Gelecek Dönem Nakit Projeksiyonu</h4>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div>Gerçekleşen Tahsilatlar: <strong id="lblNakitGerceklesenTahsilat" style="color:var(--success);">0.00 TL</strong></div>
+              <div>Gerçekleşen Ödemeler: <strong id="lblNakitGerceklesenOdeme" style="color:var(--accent-dark);">0.00 TL</strong></div>
+              <div style="border-top:1px dashed var(--line); padding-top:5px;">Beklenen Tahsilatlar (Faturalar): <strong id="lblNakitBeklenenTahsilat" style="color:var(--success);">0.00 TL</strong></div>
+              <div>Beklenen Ödemeler (Satın Alma vb): <strong id="lblNakitBeklenenOdeme" style="color:var(--accent-dark);">0.00 TL</strong></div>
+              <div style="border-top:2px solid var(--line); padding-top:8px; font-size:16px;">Projeksiyon Net Durumu: <strong id="lblNakitNetDurum">0.00 TL</strong></div>
+            </div>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="drafts-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+                <th style="padding: 10px;">Vade/İşlem Tarihi</th>
+                <th style="padding: 10px;">Tür</th>
+                <th style="padding: 10px;">Cari Hesap / Detay</th>
+                <th style="padding: 10px;">Açıklama / Durum</th>
+                <th style="padding: 10px; text-align:right;">Giriş Tutarı</th>
+                <th style="padding: 10px; text-align:right;">Çıkış Tutarı</th>
+                <th style="padding: 10px; text-align:right;">Net Pozisyon</th>
+              </tr>
+            </thead>
+            <tbody id="tblNakitAkisiBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 4. GELİR - GİDER -->
+      <div class="rapor-subpanel hidden" id="subpanel-rapor-gelirgider">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
+          <div class="panel" style="min-height:auto; border:1px solid var(--line); padding:15px; box-shadow:none;">
+            <h4 style="margin:0 0 10px 0;">Kategori Bazlı Gider Dağılımı</h4>
+            <div style="height:200px; display:flex; justify-content:center;"><canvas id="chartGelirGiderPasta"></canvas></div>
+          </div>
+          <div class="panel" style="min-height:auto; border:1px solid var(--line); padding:15px; box-shadow:none; display:flex; flex-direction:column; justify-content:center;">
+            <h4 style="margin:0 0 10px 0;">Gelir - Gider Özet Tablosu</h4>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; justify-content:space-between;"><span>Toplam Gelir Kalemleri:</span><strong id="lblGelirGiderTotalGelir" style="color:var(--success);">0.00 TL</strong></div>
+              <div style="display:flex; justify-content:space-between;"><span>Toplam Gider Kalemleri:</span><strong id="lblGelirGiderTotalGider" style="color:var(--accent-dark);">0.00 TL</strong></div>
+              <div style="display:flex; justify-content:space-between; border-top: 2px solid var(--line); padding-top:8px; font-size:16px;"><span>Net Sonuç:</span><strong id="lblGelirGiderNet">0.00 TL</strong></div>
+            </div>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="drafts-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+                <th style="padding: 10px;">Dönem / Tarih</th>
+                <th style="padding: 10px;">Kalem Türü</th>
+                <th style="padding: 10px;">Kategori</th>
+                <th style="padding: 10px;">Cari Hesap / Açıklama</th>
+                <th style="padding: 10px; text-align:right;">Tutar</th>
+              </tr>
+            </thead>
+            <tbody id="tblGelirGiderBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 5. KÂR - ZARAR RAPORU -->
+      <div class="rapor-subpanel hidden" id="subpanel-rapor-karzarar">
+        <div class="panel" style="max-width: 700px; margin: 0 auto; min-height:auto; border: 1px solid var(--line); box-shadow:none; padding:20px;">
+          <h3 style="text-align:center; font-family:'Montserrat',sans-serif; margin-top:0;">Dönemsel Kâr - Zarar Tablosu (Gelir Tablosu)</h3>
+          <p style="text-align:center; color:var(--ink-soft); font-size:11px; margin-bottom:20px;" id="lblKarZararPeriod">Tüm Dönemler</p>
+          <table style="width:100%; font-size:14px; border-collapse:collapse;" id="tblKarZararTablosu">
+            <tbody>
+              <tr style="border-bottom:1.5px solid var(--line); font-weight:bold;"><td style="padding:8px 0;">BRÜT SATIŞ GELİRLERİ</td><td style="text-align:right;" id="valKzSatisGelirleri">0.00 TL</td></tr>
+              <tr><td style="padding:6px 0; padding-left:15px; color:var(--ink-soft);">Satış Gelirleri</td><td style="text-align:right; color:var(--ink-soft);" id="valKzSatisG">0.00 TL</td></tr>
+              <tr style="border-bottom:1.5px solid var(--line);"><td style="padding:6px 0; padding-left:15px; color:var(--ink-soft);">Hizmet Gelirleri</td><td style="text-align:right; color:var(--ink-soft);" id="valKzHizmetG">0.00 TL</td></tr>
+              
+              <tr style="border-bottom:1.5px solid var(--line); font-weight:bold; color:var(--accent-dark);"><td style="padding:8px 0;">SATIŞLARIN MALİYETİ (-)</td><td style="text-align:right;" id="valKzSatisMaliyetleri">0.00 TL</td></tr>
+              <tr style="border-bottom:2px solid var(--ink);"><td style="padding:6px 0; padding-left:15px; color:var(--ink-soft);">Satılan Mal / Hizmet Maliyeti</td><td style="text-align:right; color:var(--ink-soft);" id="valKzSatisM">0.00 TL</td></tr>
+              
+              <tr style="background:#e8f4fd; font-weight:bold; font-size:15px; border-bottom:2px solid var(--ink);"><td style="padding:10px 8px;">BRÜT KÂR / ZARAR</td><td style="text-align:right; padding:10px 8px;" id="valKzBrutKar">0.00 TL</td></tr>
+              
+              <tr style="border-bottom:1.5px solid var(--line); font-weight:bold; color:var(--accent-dark);"><td style="padding:8px 0;">FAALİYET GİDERLERİ (-)</td><td style="text-align:right;" id="valKzFaaliyetGiderleri">0.00 TL</td></tr>
+              <tr style="border-bottom:2px solid var(--ink);"><td style="padding:6px 0; padding-left:15px; color:var(--ink-soft);">Genel Yönetim ve Faaliyet Giderleri</td><td style="text-align:right; color:var(--ink-soft);" id="valKzFaaliyetG">0.00 TL</td></tr>
+              
+              <tr style="background:#e8f8f5; font-weight:bold; font-size:15px; border-bottom:2px solid var(--ink);"><td style="padding:10px 8px;">FAALİYET KÂRI / ZARARI</td><td style="text-align:right; padding:10px 8px;" id="valKzFaaliyetKar">0.00 TL</td></tr>
+              
+              <tr style="border-bottom:1.5px solid var(--line); font-weight:bold;"><td style="padding:8px 0;">DİĞER GELİR VE GİDERLER</td><td style="text-align:right;" id="valKzDigerNet">0.00 TL</td></tr>
+              <tr><td style="padding:6px 0; padding-left:15px; color:var(--ink-soft);">Diğer Olağan Gelirler (Kur Farkı vb.)</td><td style="text-align:right; color:var(--ink-soft);" id="valKzDigerG">0.00 TL</td></tr>
+              <tr style="border-bottom:2px solid var(--ink);"><td style="padding:6px 0; padding-left:15px; color:var(--ink-soft);">Diğer Olağan Giderler (-)</td><td style="text-align:right; color:var(--ink-soft);" id="valKzDigerGi">0.00 TL</td></tr>
+              
+              <tr style="background:#eafaf1; font-weight:bold; font-size:16px; border-bottom:3px double var(--ink);"><td style="padding:12px 8px; color:var(--success);">DÖNEM NET KÂRI / ZARARI</td><td style="text-align:right; padding:12px 8px;" id="valKzNetKar">0.00 TL</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 6. BİLANÇO -->
+      <div class="rapor-subpanel hidden" id="subpanel-rapor-bilanco">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+          <!-- AKTİF (VARLIKLAR) -->
+          <div class="panel" style="min-height:auto; border:1px solid var(--line); padding:15px; box-shadow:none;">
+            <h4 style="margin:0 0 15px 0; text-align:center; background:#1b3a4b; color:#fff; padding:6px; border-radius:4px;">AKTİF (VARLIKLAR)</h4>
+            <table style="width:100%; font-size:13px; border-collapse:collapse;">
+              <tbody>
+                <tr style="font-weight:bold; border-bottom:1.5px solid var(--line);"><td style="padding:8px 0;">I. DÖNEN VARLIKLAR</td><td style="text-align:right;" id="valBDonenVarliklar">0.00 TL</td></tr>
+                <tr><td style="padding:5px 0; padding-left:15px; color:var(--ink-soft);">Kasa Hesabı</td><td style="text-align:right;" id="valBKasa">0.00 TL</td></tr>
+                <tr><td style="padding:5px 0; padding-left:15px; color:var(--ink-soft);">Banka Hesapları</td><td style="text-align:right;" id="valBBankalar">0.00 TL</td></tr>
+                <tr style="border-bottom:1.5px solid var(--line);"><td style="padding:5px 0; padding-left:15px; color:var(--ink-soft);">Müşterilerden Alacaklar (Cari)</td><td style="text-align:right;" id="valBAlacaklar">0.00 TL</td></tr>
+                
+                <tr style="font-weight:bold; border-bottom:1.5px solid var(--line);"><td style="padding:8px 0;">II. DURAN VARLIKLAR</td><td style="text-align:right;" id="valBDuranVarliklar">150,000.00 TL</td></tr>
+                <tr style="border-bottom:2px solid var(--ink);"><td style="padding:5px 0; padding-left:15px; color:var(--ink-soft);">Tesis, Makine ve Cihazlar (Sabit Değer)</td><td style="text-align:right;">150,000.00 TL</td></tr>
+                
+                <tr style="font-weight:bold; font-size:15px; background:var(--paper);"><td style="padding:10px 8px;">TOPLAM AKTİF (VARLIKLAR)</td><td style="text-align:right; padding:10px 8px;" id="valBToplamAktif">0.00 TL</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- PASİF (KAYNAKLAR) -->
+          <div class="panel" style="min-height:auto; border:1px solid var(--line); padding:15px; box-shadow:none;">
+            <h4 style="margin:0 0 15px 0; text-align:center; background:#2c3e50; color:#fff; padding:6px; border-radius:4px;">PASİF (KAYNAKLAR)</h4>
+            <table style="width:100%; font-size:13px; border-collapse:collapse;">
+              <tbody>
+                <tr style="font-weight:bold; border-bottom:1.5px solid var(--line);"><td style="padding:8px 0;">III. KISA VADELİ YABANCI KAYNAKLAR</td><td style="text-align:right;" id="valBKisaVadeliBorc">0.00 TL</td></tr>
+                <tr style="border-bottom:1.5px solid var(--line);"><td style="padding:5px 0; padding-left:15px; color:var(--ink-soft);">Satıcılara Borçlar (Cari)</td><td style="text-align:right;" id="valBBorclar">0.00 TL</td></tr>
+                
+                <tr style="font-weight:bold; border-bottom:1.5px solid var(--line);"><td style="padding:8px 0;">IV. UZUN VADELİ YABANCI KAYNAKLAR</td><td style="text-align:right;">50,000.00 TL</td></tr>
+                <tr style="border-bottom:2px solid var(--ink);"><td style="padding:5px 0; padding-left:15px; color:var(--ink-soft);">Uzun Vadeli Krediler (Sabit Değer)</td><td style="text-align:right;">50,000.00 TL</td></tr>
+                
+                <tr style="font-weight:bold; border-bottom:1.5px solid var(--line);"><td style="padding:8px 0;">V. ÖZ SERMAYE</td><td style="text-align:right;" id="valBOzSermaye">100,000.00 TL</td></tr>
+                <tr style="border-bottom:2px solid var(--ink);"><td style="padding:5px 0; padding-left:15px; color:var(--ink-soft);">Sermaye & Dönem Kâr/Zararı</td><td style="text-align:right;" id="valBSermayeKar">100,000.00 TL</td></tr>
+                
+                <tr style="font-weight:bold; font-size:15px; background:var(--paper);"><td style="padding:10px 8px;">TOPLAM PASİF (KAYNAKLAR)</td><td style="text-align:right; padding:10px 8px;" id="valBToplamPasif">0.00 TL</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. BORÇ ALACAK RAPORU -->
+      <div class="rapor-subpanel hidden" id="subpanel-rapor-borcalacak">
+        <div style="display:grid; grid-template-columns: 1fr 1.2fr; gap:20px; margin-bottom:20px;">
+          <div class="panel" style="min-height:auto; border:1px solid var(--line); padding:15px; box-shadow:none;">
+            <h4 style="margin:0 0 10px 0;">Risk Analizi & Cari Dağılım</h4>
+            <div style="height:200px; display:flex; justify-content:center;"><canvas id="chartBorcAlacakPasta"></canvas></div>
+          </div>
+          <div class="panel" style="min-height:auto; border:1px solid var(--line); padding:15px; box-shadow:none; display:flex; flex-direction:column; justify-content:center;">
+            <h4 style="margin:0 0 10px 0;">Alacak/Borç Yaşlandırma Analizi (Günlük Vadeye Göre)</h4>
+            <table style="width:100%; font-size:12px; border-collapse:collapse;">
+              <thead>
+                <tr style="border-bottom:1.5px solid var(--ink); font-weight:bold;">
+                  <th style="text-align:left; padding:4px;">Grup</th>
+                  <th style="text-align:right; padding:4px;">Vadesi Geçmemiş</th>
+                  <th style="text-align:right; padding:4px;">0-30 Gün</th>
+                  <th style="text-align:right; padding:4px;">31-60 Gün</th>
+                  <th style="text-align:right; padding:4px;">61-90 Gün</th>
+                  <th style="text-align:right; padding:4px;">90+ Gün</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="font-weight:bold; padding:6px 4px; color:var(--success);">Alacaklar</td>
+                  <td style="text-align:right;" id="lblYasAlacak0">0.00</td>
+                  <td style="text-align:right;" id="lblYasAlacak30">0.00</td>
+                  <td style="text-align:right;" id="lblYasAlacak60">0.00</td>
+                  <td style="text-align:right;" id="lblYasAlacak90">0.00</td>
+                  <td style="text-align:right;" id="lblYasAlacak120">0.00</td>
+                </tr>
+                <tr>
+                  <td style="font-weight:bold; padding:6px 4px; color:var(--accent-dark);">Borçlar</td>
+                  <td style="text-align:right;" id="lblYasBorc0">0.00</td>
+                  <td style="text-align:right;" id="lblYasBorc30">0.00</td>
+                  <td style="text-align:right;" id="lblYasBorc60">0.00</td>
+                  <td style="text-align:right;" id="lblYasBorc90">0.00</td>
+                  <td style="text-align:right;" id="lblYasBorc120">0.00</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="drafts-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+                <th style="padding: 10px;">Cari Kodu</th>
+                <th style="padding: 10px;">Cari Ünvanı</th>
+                <th style="padding: 10px;">Tür</th>
+                <th style="padding: 10px; text-align:right;">Toplam Borç (-)</th>
+                <th style="padding: 10px; text-align:right;">Toplam Alacak (+)</th>
+                <th style="padding: 10px; text-align:right;">Bakiye (Net)</th>
+                <th style="padding: 10px; text-align:center;">Risk Durumu</th>
+              </tr>
+            </thead>
+            <tbody id="tblBorcAlacakRaporuBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- AUDIT LOG PANEL -->
+      <div class="rapor-subpanel hidden" id="subpanel-rapor-audit">
+        <h4 style="margin-top:0;">Sistem Rapor Görüntüleme & Dışa Aktarma Kayıtları</h4>
+        <div class="table-responsive">
+          <table class="drafts-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+                <th style="padding: 10px;">Zaman</th>
+                <th style="padding: 10px;">Kullanıcı</th>
+                <th style="padding: 10px;">Rol</th>
+                <th style="padding: 10px;">İşlem</th>
+                <th style="padding: 10px;">Detay</th>
+              </tr>
+            </thead>
+            <tbody id="tblAuditRaporuBody"></tbody>
+          </table>
         </div>
       </div>
     </div>

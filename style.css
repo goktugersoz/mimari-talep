@@ -1231,6 +1231,44 @@
 .status-tamamlandi { background: #e0f2f1; color: #004d40; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:11px; }
 .status-reddedildi { background: #efebe9; color: #4e342e; padding: 4px 8px; border-radius: 4px; font-weight:bold; font-size:11px; }
 
+/* RAPORLAR MODÜLÜ EK STİLLERİ */
+.rapor-subpanel {
+  animation: fadeIn 0.25s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Print Settings for Reports */
+@media print {
+  body {
+    background: #fff !important;
+    padding: 0 !important;
+  }
+  .wrap {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  #panel-raporlar {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  .tabs, .titleblock, .tb-actions, button, #btnExportCSV, #btnExportExcel, #btnExportPDF, #btnFilterRapor, #lblSelectedUserRole, header, .no-print {
+    display: none !important;
+  }
+  .rapor-subpanel {
+    display: block !important;
+    opacity: 1 !important;
+  }
+  .rapor-subpanel.hidden {
+    display: none !important;
+  }
+}
+
+
 
 
 
