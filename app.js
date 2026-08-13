@@ -333,6 +333,20 @@
 
   function showApp() {
     $('loginContainer').style.display = 'none';
+    
+    // Check if the current user has the Accountant role
+    const isAccountant = currentUser && (currentUser.role === 'MUHASEBE' || currentUser.role === 'MUHASEBECİ');
+    
+    if (isAccountant) {
+      $('appContainer').classList.add('hidden');
+      $('muhasebeContainer').classList.remove('hidden');
+      $('lblCurrentMuhasebeUser').textContent = `${currentUser.username} (${currentUser.role})`;
+      switchMuhasebeTab('contracts');
+      loadAccountingRecords();
+      return;
+    }
+
+    $('muhasebeContainer').classList.add('hidden');
     $('appContainer').classList.remove('hidden');
     $('lblCurrentUser').textContent = `${currentUser.username} (${(currentUser.role === 'admin' || currentUser.role === 'YÖNETİM') ? 'Yönetici' : currentUser.role})`;
 
@@ -448,6 +462,7 @@
   function handleLogout() {
     currentUser = null;
     sessionStorage.removeItem('mimari-session');
+    $('muhasebeContainer').classList.add('hidden');
     showLogin();
     showToast('Çıkış yapıldı.');
   }
@@ -2370,6 +2385,393 @@
   } else {
     $('storageWarning').classList.remove('hidden');
   }
+
+  // ---- MUHASEBE PORTAL LOGIC ----
+  let accountingRecords = [];
+  let attachedContractFile = null;
+  const STORAGE_KEY_ACCOUNTING = 'mimari-muhasebe-kayitlari';
+
+  function switchMuhasebeTab(name) {
+    document.querySelectorAll('[data-muhasebe-tab]').forEach(t => {
+      t.classList.toggle('active', t.getAttribute('data-muhasebe-tab') === name);
+    });
+    $('panel-contracts').classList.toggle('hidden', name !== 'contracts');
+    $('panel-drivers').classList.toggle('hidden', name !== 'drivers');
+    $('panel-customers').classList.toggle('hidden', name !== 'customers');
+  }
+
+  async function loadAccountingRecords() {
+    if (useSupabase) {
+      try {
+        const { data, error } = await supabase.from('accounting_records').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        accountingRecords = (data || []).map(r => ({
+          id: r.id,
+          createdAt: r.created_at,
+          type: r.type,
+          data: typeof r.data === 'string' ? JSON.parse(r.data) : r.data,
+          uploadedBy: r.uploaded_by
+        }));
+        $('muhasebeStorageWarning').textContent = '🟢 Supabase veritabanı aktif ve bağlandı. Muhasebe kayıtlarınız bulutta güvenle saklanıyor.';
+        $('muhasebeStorageWarning').style.background = '#e8f5e9';
+        $('muhasebeStorageWarning').style.border = '1.5px solid #2e7d32';
+        $('muhasebeStorageWarning').style.color = '#1b5e20';
+        $('muhasebeStorageWarning').classList.remove('hidden');
+      } catch (e) {
+        console.warn("accounting_records table not found in Supabase. Using localStorage.", e);
+        $('muhasebeStorageWarning').innerHTML = `⚠️ Supabase bağlantısı aktif fakat <strong>accounting_records</strong> tablosu bulunamadı. Verileriniz bu tarayıcıda saklanacak. Bulut eşleşmesi için Supabase SQL Editor panelinizde şu SQL komutunu çalıştırın:<br><pre style="background:#fff; padding:6px; margin:5px 0 0 0; font-family:monospace; font-size:11px; border:1px solid #ddd; overflow-x:auto;">create table if not exists accounting_records (
+  id text primary key,
+  created_at timestamptz default now(),
+  type text,
+  data jsonb,
+  uploaded_by text
+);
+grant all privileges on table accounting_records to anon;
+grant all privileges on table accounting_records to authenticated;
+grant all privileges on table accounting_records to service_role;
+alter table accounting_records disable row level security;</pre>`;
+        $('muhasebeStorageWarning').style.background = '#fff3cd';
+        $('muhasebeStorageWarning').style.border = '1.5px solid #ffeeba';
+        $('muhasebeStorageWarning').style.color = '#856404';
+        $('muhasebeStorageWarning').classList.remove('hidden');
+        await loadAccountingFromLocalStorage();
+      }
+    } else {
+      $('muhasebeStorageWarning').textContent = 'ℹ Bilgiler bu tarayıcıya (Local Storage) kaydediliyor. Sayfayı yenilediğinizde veya kapatıp açtığınızda kaybolmaz. Supabase veritabanına bağlanmak için index.html dosyası içindeki SUPABASE_URL ve SUPABASE_ANON_KEY sabitlerini doldurabilirsiniz.';
+      $('muhasebeStorageWarning').style.background = '#e1f5fe';
+      $('muhasebeStorageWarning').style.border = '1.5px solid #0288d1';
+      $('muhasebeStorageWarning').style.color = '#01579b';
+      $('muhasebeStorageWarning').classList.remove('hidden');
+      await loadAccountingFromLocalStorage();
+    }
+    renderAccounting();
+  }
+
+  async function loadAccountingFromLocalStorage() {
+    try {
+      const val = await getStorageItem(STORAGE_KEY_ACCOUNTING);
+      accountingRecords = val ? JSON.parse(val) : [];
+    } catch (e) {
+      accountingRecords = [];
+    }
+  }
+
+  async function saveAccountingRecord(record) {
+    if (useSupabase) {
+      try {
+        const { error } = await supabase.from('accounting_records').insert({
+          id: record.id,
+          type: record.type,
+          data: record.data,
+          uploaded_by: record.uploadedBy,
+          created_at: record.createdAt
+        });
+        if (!error) return true;
+        console.error("Supabase accounting insert error:", error);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    // Fallback/Local Save
+    accountingRecords.push(record);
+    await saveAccountingToLocalStorage();
+    return true;
+  }
+
+  async function saveAccountingToLocalStorage() {
+    try {
+      await setStorageItem(STORAGE_KEY_ACCOUNTING, JSON.stringify(accountingRecords));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function deleteAccountingRecord(id) {
+    if (!confirm('Bu kaydı silmek istediğinize emin misiniz?')) return;
+    let ok = false;
+    if (useSupabase) {
+      try {
+        const { error } = await supabase.from('accounting_records').delete().eq('id', id);
+        if (!error) {
+          ok = true;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    // Always clean from local memory/storage as well to stay consistent
+    accountingRecords = accountingRecords.filter(r => r.id !== id);
+    await saveAccountingToLocalStorage();
+    ok = true;
+
+    if (ok) {
+      showToast('Kayıt silindi.');
+      renderAccounting();
+    } else {
+      showToast('Kayıt silinirken hata oluştu.', true);
+    }
+  }
+
+  // Render Lists
+  function renderAccounting() {
+    const listContracts = $('contractsListTable');
+    const listDrivers = $('driversListTable');
+    const listCustomers = $('customersListTable');
+
+    if (!listContracts || !listDrivers || !listCustomers) return;
+
+    const contracts = accountingRecords.filter(r => r.type === 'contract');
+    const drivers = accountingRecords.filter(r => r.type === 'driver');
+    const customers = accountingRecords.filter(r => r.type === 'customer');
+
+    // Render Contracts
+    if (contracts.length === 0) {
+      listContracts.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--ink-soft); padding:30px;">Kayıtlı sözleşme bulunmamaktadır.</td></tr>`;
+    } else {
+      listContracts.innerHTML = contracts.map(c => {
+        const dateStr = c.createdAt ? new Date(c.createdAt).toLocaleDateString('tr-TR') : '—';
+        return `<tr>
+          <td style="font-weight: bold;">${esc(c.data.title)}</td>
+          <td>
+            <a href="${c.data.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(c.data.fileUrl)}', '${esc(c.data.fileName)}')">
+              📁 ${esc(c.data.fileName)} (${formatBytes(c.data.fileSize)})
+            </a>
+          </td>
+          <td>${esc(c.uploadedBy)}</td>
+          <td>${dateStr}</td>
+          <td style="text-align:center;">
+            <button class="personnel-del" style="float:none;" onclick="deleteAccountingRecord('${c.id}')" title="Kayıt Sil">✕</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    // Render Drivers
+    if (drivers.length === 0) {
+      listDrivers.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--ink-soft); padding:30px;">Kayıtlı şoför bulunmamaktadır.</td></tr>`;
+    } else {
+      listDrivers.innerHTML = drivers.map(d => {
+        return `<tr>
+          <td style="font-weight: bold;">${esc(d.data.name)}</td>
+          <td>${esc(d.data.phone)}</td>
+          <td>${esc(d.data.plate)}</td>
+          <td style="text-align:center;">
+            <button class="personnel-del" style="float:none;" onclick="deleteAccountingRecord('${d.id}')" title="Kayıt Sil">✕</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    // Render Customers
+    if (customers.length === 0) {
+      listCustomers.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--ink-soft); padding:30px;">Kayıtlı müşteri bulunmamaktadır.</td></tr>`;
+    } else {
+      listCustomers.innerHTML = customers.map(c => {
+        return `<tr>
+          <td style="font-weight: bold;">${esc(c.data.name)}</td>
+          <td>${esc(c.data.phone)}</td>
+          <td>${esc(c.data.address)}</td>
+          <td style="text-align:center;">
+            <button class="personnel-del" style="float:none;" onclick="deleteAccountingRecord('${c.id}')" title="Kayıt Sil">✕</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+  }
+
+  // Contract Upload Handler
+  async function handleAddContract() {
+    const title = $('inpContractTitle').value.trim();
+    if (!title) {
+      showToast('Lütfen sözleşme başlığı girin.', true);
+      return;
+    }
+    if (!attachedContractFile) {
+      showToast('Lütfen bir sözleşme dosyası seçin.', true);
+      return;
+    }
+
+    const btn = $('btnUploadContract');
+    btn.disabled = true;
+    btn.textContent = 'Kaydediliyor...';
+
+    try {
+      let fileUrl = null;
+      if (attachedContractFile.fileRaw) {
+        fileUrl = await uploadProjectFile(attachedContractFile);
+      } else {
+        fileUrl = attachedContractFile.data;
+      }
+
+      const record = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        type: 'contract',
+        data: {
+          title: title,
+          fileName: attachedContractFile.name,
+          fileSize: attachedContractFile.size,
+          fileUrl: fileUrl
+        },
+        uploadedBy: currentUser ? (currentUser.personnelName || currentUser.username) : 'Anonim',
+        createdAt: new Date().toISOString()
+      };
+
+      await saveAccountingRecord(record);
+      if (!useSupabase) {
+        renderAccounting();
+      } else {
+        await loadAccountingRecords();
+      }
+
+      $('inpContractTitle').value = '';
+      $('inpContractFile').value = '';
+      attachedContractFile = null;
+      $('contractFileStatus').textContent = '';
+      $('btnRemoveContractFile').classList.add('hidden');
+      showToast('Sözleşme başarıyla kaydedildi.');
+    } catch (e) {
+      console.error(e);
+      showToast('Hata: ' + e.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sözleşmeyi Kaydet';
+    }
+  }
+
+  // Driver Add Handler
+  async function handleAddDriver() {
+    const name = $('inpDriverName').value.trim();
+    const phone = $('inpDriverPhone').value.trim();
+    const plate = $('inpDriverPlate').value.trim();
+
+    if (!name || !phone || !plate) {
+      showToast('Lütfen şoför bilgilerini eksiksiz doldurun.', true);
+      return;
+    }
+
+    const record = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      type: 'driver',
+      data: { name, phone, plate },
+      uploadedBy: currentUser ? (currentUser.personnelName || currentUser.username) : 'Anonim',
+      createdAt: new Date().toISOString()
+    };
+
+    await saveAccountingRecord(record);
+    if (!useSupabase) {
+      renderAccounting();
+    } else {
+      await loadAccountingRecords();
+    }
+
+    $('inpDriverName').value = '';
+    $('inpDriverPhone').value = '';
+    $('inpDriverPlate').value = '';
+    showToast('Şoför başarıyla kaydedildi.');
+  }
+
+  // Customer Add Handler
+  async function handleAddCustomer() {
+    const name = $('inpCustomerNameAcc').value.trim();
+    const phone = $('inpCustomerPhoneAcc').value.trim();
+    const address = $('inpCustomerAddressAcc').value.trim();
+
+    if (!name || !phone || !address) {
+      showToast('Lütfen müşteri bilgilerini eksiksiz doldurun.', true);
+      return;
+    }
+
+    const record = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      type: 'customer',
+      data: { name, phone, address },
+      uploadedBy: currentUser ? (currentUser.personnelName || currentUser.username) : 'Anonim',
+      createdAt: new Date().toISOString()
+    };
+
+    await saveAccountingRecord(record);
+    if (!useSupabase) {
+      renderAccounting();
+    } else {
+      await loadAccountingRecords();
+    }
+
+    $('inpCustomerNameAcc').value = '';
+    $('inpCustomerPhoneAcc').value = '';
+    $('inpCustomerAddressAcc').value = '';
+    showToast('Müşteri başarıyla kaydedildi.');
+  }
+
+  // Bind accounting actions window scope for list buttons
+  window.deleteAccountingRecord = deleteAccountingRecord;
+
+  // Set up listeners for accounting
+  $('btnMuhasebeLogout').addEventListener('click', handleLogout);
+  $('btnUploadContract').addEventListener('click', handleAddContract);
+  $('btnAddDriver').addEventListener('click', handleAddDriver);
+  $('btnAddCustomer').addEventListener('click', handleAddCustomer);
+
+  document.querySelectorAll('[data-muhasebe-tab]').forEach(t => {
+    t.addEventListener('click', () => switchMuhasebeTab(t.getAttribute('data-muhasebe-tab')));
+  });
+
+  $('inpContractFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) {
+      attachedContractFile = null;
+      $('contractFileStatus').textContent = '';
+      $('btnRemoveContractFile').classList.add('hidden');
+      return;
+    }
+
+    const maxLocalStorageSize = 2.5 * 1024 * 1024;
+    const maxSupabaseSize = 50 * 1024 * 1024;
+    const currentLimit = useSupabase ? maxSupabaseSize : maxLocalStorageSize;
+
+    if (file.size > currentLimit) {
+      if (useSupabase) {
+        showToast('Dosya boyutu 50MB\'tan küçük olmalıdır.', true);
+      } else {
+        showToast('Dosya boyutu 2.5MB\'tan küçük olmalıdır. Büyük dosyalar yerel tarayıcı hafızasına kaydedilemez.', true);
+      }
+      $('inpContractFile').value = '';
+      attachedContractFile = null;
+      $('contractFileStatus').textContent = '';
+      $('btnRemoveContractFile').classList.add('hidden');
+      return;
+    }
+
+    if (useSupabase) {
+      attachedContractFile = {
+        name: file.name,
+        size: file.size,
+        data: null,
+        fileRaw: file
+      };
+      $('contractFileStatus').textContent = `Hazır: ${file.name} (${formatBytes(file.size)})`;
+      $('btnRemoveContractFile').classList.remove('hidden');
+    } else {
+      const reader = new FileReader();
+      reader.onload = function (evt) {
+        attachedContractFile = {
+          name: file.name,
+          size: file.size,
+          data: evt.target.result
+        };
+        $('contractFileStatus').textContent = `Hazır: ${file.name} (${formatBytes(file.size)})`;
+        $('btnRemoveContractFile').classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  $('btnRemoveContractFile').addEventListener('click', () => {
+    $('inpContractFile').value = '';
+    attachedContractFile = null;
+    $('contractFileStatus').textContent = '';
+    $('btnRemoveContractFile').classList.add('hidden');
+  });
+
 
   async function init() {
     await loadUsers();

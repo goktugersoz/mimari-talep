@@ -366,7 +366,7 @@ comment on table draft_projects is 'Draft Projects Table';</pre>
             <label>Yetki / Rol</label>
             <div class="select-wrap">
               <select id="selAdminNewRole">
-                <option value="MUHASEBE">MUHASEBE</option>
+                <option value="MUHASEBE">MUHASEBE / MUHASEBECİ</option>
                 <option value="PROJE">PROJE</option>
                 <option value="FABRİKA">FABRİKA</option>
                 <option value="YÖNETİM">YÖNETİM</option>
@@ -378,11 +378,159 @@ comment on table draft_projects is 'Draft Projects Table';</pre>
           <button class="btn-submit" id="btnAdminAddUser">Kullanıcı Ekle</button>
         </div>
       </div>
-
+ 
       <h4 style="font-family:'Space Grotesk',sans-serif; margin: 20px 0 10px 0;">Mevcut Kullanıcılar</h4>
       <div id="usersList"></div>
     </div>
+ 
+  </div>
 
+  <!-- MUHASEBE CONTAINER -->
+  <div class="wrap hidden" id="muhasebeContainer">
+    <header>
+      <div>
+        <p class="brand-eyebrow">Muhasebe Portalı · Giriş yapan: <span id="lblCurrentMuhasebeUser" style="font-weight:700;">—</span></p>
+        <h1>Muhasebe Yönetim Paneli</h1>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button id="btnMuhasebeLogout" class="btn-cancel-edit" style="padding:6px 12px; font-size:12px; height:auto; background:var(--danger); color:#fff; border-color:var(--danger);">ÇIKIŞ YAP</button>
+      </div>
+    </header>
+
+    <div class="storage-warning hidden" id="muhasebeStorageWarning">
+      🟢 Supabase veritabanı aktif ve bağlandı. Muhasebe kayıtlarınız bulutta güvenle saklanıyor.
+    </div>
+
+    <!-- TABS/SECTIONS FOR ACCOUNTING -->
+    <div class="tabs">
+      <div class="tab active" data-muhasebe-tab="contracts">SÖZLEŞMELER</div>
+      <div class="tab" data-muhasebe-tab="drivers">ŞOFÖR BİLGİLERİ</div>
+      <div class="tab" data-muhasebe-tab="customers">MÜŞTERİ BİLGİLERİ</div>
+    </div>
+
+    <!-- CONTRACTS PANEL -->
+    <div class="panel" id="panel-contracts">
+      <div class="titleblock" style="max-width: 560px; margin-bottom: 25px;">
+        <div class="tb-top"><span>YENİ SÖZLEŞME YÜKLE</span></div>
+        <div class="tb-grid" style="grid-template-columns: 1fr;">
+          <div class="cell">
+            <label>Sözleşme Adı / Başlığı</label>
+            <input type="text" id="inpContractTitle" placeholder="örn. Ahmet Yılmaz Çelik Konut Sözleşmesi">
+          </div>
+          <div class="cell">
+            <label>Sözleşme Dosyası (PDF, DWG, Excel, Görsel vb. - Maks 50MB)</label>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <input id="inpContractFile" type="file" style="font-size:13px;">
+              <button type="button" id="btnRemoveContractFile" class="btn-cancel-edit hidden" style="padding:5px 12px; font-size:12px; height:auto; font-family:'Montserrat',sans-serif;">Kaldır</button>
+            </div>
+            <div id="contractFileStatus" class="hint" style="margin-top:5px; font-family:'Roboto',sans-serif;"></div>
+          </div>
+        </div>
+        <div class="tb-actions" style="justify-content: flex-end; padding-top: 10px;">
+          <button class="btn-submit" id="btnUploadContract" style="width: auto;">Sözleşmeyi Kaydet</button>
+        </div>
+      </div>
+
+      <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Yüklenen Sözleşmeler</h3>
+      <div class="table-responsive" style="overflow-x:auto;">
+        <table class="drafts-table" style="width: 100%; border-collapse: collapse; margin-top: 15px; min-width: 600px;">
+          <thead>
+            <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+              <th style="padding: 12px 10px;">Sözleşme Adı</th>
+              <th style="padding: 12px 10px;">Dosya</th>
+              <th style="padding: 12px 10px;">Yükleyen</th>
+              <th style="padding: 12px 10px;">Tarih</th>
+              <th style="padding: 12px 10px; text-align: center; width: 100px;">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody id="contractsListTable">
+            <!-- JS ile doldurulacak -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DRIVERS PANEL -->
+    <div class="panel hidden" id="panel-drivers">
+      <div class="titleblock" style="max-width: 560px; margin-bottom: 25px;">
+        <div class="tb-top"><span>YENİ ŞOFÖR EKLE</span></div>
+        <div class="tb-grid" style="grid-template-columns: 1fr 1fr;">
+          <div class="cell">
+            <label>Şoför Adı Soyadı</label>
+            <input type="text" id="inpDriverName" placeholder="örn. Kemal Demir">
+          </div>
+          <div class="cell">
+            <label>Telefon Numarası</label>
+            <input type="text" id="inpDriverPhone" placeholder="örn. 0555...">
+          </div>
+          <div class="cell full">
+            <label>Araç Plakası & Detayları</label>
+            <input type="text" id="inpDriverPlate" placeholder="örn. 34 ABC 123 - Kırmızı Kamyon">
+          </div>
+        </div>
+        <div class="tb-actions" style="justify-content: flex-end; padding-top: 10px;">
+          <button class="btn-submit" id="btnAddDriver" style="width: auto;">Şoförü Kaydet</button>
+        </div>
+      </div>
+
+      <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Kayıtlı Şoförler</h3>
+      <div class="table-responsive" style="overflow-x:auto;">
+        <table class="drafts-table" style="width: 100%; border-collapse: collapse; margin-top: 15px; min-width: 600px;">
+          <thead>
+            <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+              <th style="padding: 12px 10px;">Şoför Adı Soyadı</th>
+              <th style="padding: 12px 10px;">Telefon</th>
+              <th style="padding: 12px 10px;">Araç Plakası & Detayları</th>
+              <th style="padding: 12px 10px; text-align: center; width: 100px;">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody id="driversListTable">
+            <!-- JS ile doldurulacak -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CUSTOMERS PANEL -->
+    <div class="panel hidden" id="panel-customers">
+      <div class="titleblock" style="max-width: 560px; margin-bottom: 25px;">
+        <div class="tb-top"><span>YENİ MÜŞTERİ EKLE</span></div>
+        <div class="tb-grid" style="grid-template-columns: 1fr 1fr;">
+          <div class="cell full">
+            <label>Müşteri / Firma İsmi</label>
+            <input type="text" id="inpCustomerNameAcc" placeholder="örn. Atsız İnşaat A.Ş.">
+          </div>
+          <div class="cell">
+            <label>Telefon Numarası</label>
+            <input type="text" id="inpCustomerPhoneAcc" placeholder="örn. 0212...">
+          </div>
+          <div class="cell full">
+            <label>Adres Bilgisi</label>
+            <textarea id="inpCustomerAddressAcc" rows="2" placeholder="Detaylı adres yazın"></textarea>
+          </div>
+        </div>
+        <div class="tb-actions" style="justify-content: flex-end; padding-top: 10px;">
+          <button class="btn-submit" id="btnAddCustomer" style="width: auto;">Müşteriyi Kaydet</button>
+        </div>
+      </div>
+
+      <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Kayıtlı Müşteriler</h3>
+      <div class="table-responsive" style="overflow-x:auto;">
+        <table class="drafts-table" style="width: 100%; border-collapse: collapse; margin-top: 15px; min-width: 600px;">
+          <thead>
+            <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+              <th style="padding: 12px 10px;">Müşteri / Firma İsmi</th>
+              <th style="padding: 12px 10px;">Telefon</th>
+              <th style="padding: 12px 10px;">Adres</th>
+              <th style="padding: 12px 10px; text-align: center; width: 100px;">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody id="customersListTable">
+            <!-- JS ile doldurulacak -->
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <div class="toast" id="toast"></div>
