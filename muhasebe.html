@@ -36,8 +36,7 @@
     <!-- TABS/SECTIONS FOR ACCOUNTING -->
     <div class="tabs">
       <div class="tab active" data-muhasebe-tab="contracts">SÖZLEŞMELER</div>
-      <div class="tab" data-muhasebe-tab="drivers">ŞOFÖR BİLGİLERİ</div>
-      <div class="tab" data-muhasebe-tab="customers">MÜŞTERİ BİLGİLERİ</div>
+      <div class="tab" data-muhasebe-tab="projects">PROJELER</div>
       <div class="tab" data-muhasebe-tab="cari">CARİ HESAPLAR</div>
       <div class="tab" data-muhasebe-tab="fatura">FATURA YÖNETİMİ</div>
       <div class="tab" data-muhasebe-tab="doviz">DÖVİZ & KUR FARKI</div>
@@ -87,82 +86,21 @@
       </div>
     </div>
 
-    <!-- DRIVERS PANEL -->
-    <div class="panel hidden" id="panel-drivers">
-      <div class="titleblock" style="max-width: 100%; margin-bottom: 25px;">
-        <div class="tb-top"><span>YENİ ŞOFÖR EKLE</span></div>
-        <div class="tb-grid" style="grid-template-columns: 1fr 1fr;">
-          <div class="cell">
-            <label>Şoför Adı Soyadı</label>
-            <input type="text" id="inpDriverName" placeholder="örn. Kemal Demir">
-          </div>
-          <div class="cell">
-            <label>Telefon Numarası</label>
-            <input type="text" id="inpDriverPhone" placeholder="örn. 0555...">
-          </div>
-          <div class="cell full">
-            <label>Araç Plakası & Detayları</label>
-            <input type="text" id="inpDriverPlate" placeholder="örn. 34 ABC 123 - Kırmızı Kamyon">
-          </div>
-        </div>
-        <div class="tb-actions" style="justify-content: flex-end; padding-top: 10px;">
-          <button class="btn-submit" id="btnAddDriver" style="width: auto;">Şoförü Kaydet</button>
-        </div>
-      </div>
-
-      <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Kayıtlı Şoförler</h3>
+    <!-- PROJECTS PANEL -->
+    <div class="panel hidden" id="panel-projects">
+      <h3 style="font-family:'Montserrat',sans-serif; margin-top:10px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Proje Panosu Projeleri (CRM Kodları ile)</h3>
       <div class="table-responsive" style="overflow-x:auto;">
         <table class="drafts-table" style="width: 100%; border-collapse: collapse; margin-top: 15px; min-width: 600px;">
           <thead>
             <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
-              <th style="padding: 12px 10px;">Şoför Adı Soyadı</th>
-              <th style="padding: 12px 10px;">Telefon</th>
-              <th style="padding: 12px 10px;">Araç Plakası & Detayları</th>
-              <th style="padding: 12px 10px; text-align: center; width: 100px;">İşlemler</th>
+              <th style="padding: 12px 10px; width: 120px;">CRM Kodu</th>
+              <th style="padding: 12px 10px;">Şube / Firma</th>
+              <th style="padding: 12px 10px;">Çizim / Proje Tipi</th>
+              <th style="padding: 12px 10px;">Durum</th>
+              <th style="padding: 12px 10px; width: 120px;">Tarih</th>
             </tr>
           </thead>
-          <tbody id="driversListTable">
-            <!-- JS ile doldurulacak -->
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- CUSTOMERS PANEL -->
-    <div class="panel hidden" id="panel-customers">
-      <div class="titleblock" style="max-width: 100%; margin-bottom: 25px;">
-        <div class="tb-top"><span>YENİ MÜŞTERİ EKLE</span></div>
-        <div class="tb-grid" style="grid-template-columns: 1fr 1fr;">
-          <div class="cell full">
-            <label>Müşteri / Firma İsmi</label>
-            <input type="text" id="inpCustomerNameAcc" placeholder="örn. Atsız İnşaat A.Ş.">
-          </div>
-          <div class="cell">
-            <label>Telefon Numarası</label>
-            <input type="text" id="inpCustomerPhoneAcc" placeholder="örn. 0212...">
-          </div>
-          <div class="cell full">
-            <label>Adres Bilgisi</label>
-            <textarea id="inpCustomerAddressAcc" rows="2" placeholder="Detaylı adres yazın"></textarea>
-          </div>
-        </div>
-        <div class="tb-actions" style="justify-content: flex-end; padding-top: 10px;">
-          <button class="btn-submit" id="btnAddCustomer" style="width: auto;">Müşteriyi Kaydet</button>
-        </div>
-      </div>
-
-      <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Kayıtlı Müşteriler</h3>
-      <div class="table-responsive" style="overflow-x:auto;">
-        <table class="drafts-table" style="width: 100%; border-collapse: collapse; margin-top: 15px; min-width: 600px;">
-          <thead>
-            <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
-              <th style="padding: 12px 10px;">Müşteri / Firma İsmi</th>
-              <th style="padding: 12px 10px;">Telefon</th>
-              <th style="padding: 12px 10px;">Adres</th>
-              <th style="padding: 12px 10px; text-align: center; width: 100px;">İşlemler</th>
-            </tr>
-          </thead>
-          <tbody id="customersListTable">
+          <tbody id="projectsListTableBody">
             <!-- JS ile doldurulacak -->
           </tbody>
         </table>

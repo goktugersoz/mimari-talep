@@ -204,8 +204,7 @@
       t.classList.toggle('active', t.getAttribute('data-muhasebe-tab') === name);
     });
     $('panel-contracts').classList.toggle('hidden', name !== 'contracts');
-    $('panel-drivers').classList.toggle('hidden', name !== 'drivers');
-    $('panel-customers').classList.toggle('hidden', name !== 'customers');
+    $('panel-projects').classList.toggle('hidden', name !== 'projects');
     $('panel-cari').classList.toggle('hidden', name !== 'cari');
     $('panel-fatura').classList.toggle('hidden', name !== 'fatura');
     $('panel-doviz').classList.toggle('hidden', name !== 'doviz');
@@ -222,6 +221,8 @@
       loadSatinalmaData();
     } else if (name === 'raporlar') {
       initRaporlar();
+    } else if (name === 'projects') {
+      loadProjectsAndRender();
     }
   }
 
@@ -659,14 +660,9 @@
 
   function renderAccounting() {
     const listContracts = $('contractsListTable');
-    const listDrivers = $('driversListTable');
-    const listCustomers = $('customersListTable');
-
-    if (!listContracts || !listDrivers || !listCustomers) return;
+    if (!listContracts) return;
 
     const contracts = accountingRecords.filter(r => r.type === 'contract');
-    const drivers = accountingRecords.filter(r => r.type === 'driver');
-    const customers = accountingRecords.filter(r => r.type === 'customer');
 
     if (contracts.length === 0) {
       listContracts.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--ink-soft); padding:30px;">Kayıtlı sözleşme bulunmamaktadır.</td></tr>`;
@@ -682,36 +678,6 @@
           </td>
           <td>${esc(c.uploadedBy)}</td>
           <td>${dateStr}</td>
-          <td style="text-align:center;">
-            <button class="personnel-del" style="float:none;" onclick="deleteAccountingRecord('${c.id}')" title="Kayıt Sil">✕</button>
-          </td>
-        </tr>`;
-      }).join('');
-    }
-
-    if (drivers.length === 0) {
-      listDrivers.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--ink-soft); padding:30px;">Kayıtlı şoför bulunmamaktadır.</td></tr>`;
-    } else {
-      listDrivers.innerHTML = drivers.map(d => {
-        return `<tr>
-          <td style="font-weight: bold;">${esc(d.data.name)}</td>
-          <td>${esc(d.data.phone)}</td>
-          <td>${esc(d.data.plate)}</td>
-          <td style="text-align:center;">
-            <button class="personnel-del" style="float:none;" onclick="deleteAccountingRecord('${d.id}')" title="Kayıt Sil">✕</button>
-          </td>
-        </tr>`;
-      }).join('');
-    }
-
-    if (customers.length === 0) {
-      listCustomers.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--ink-soft); padding:30px;">Kayıtlı müşteri bulunmamaktadır.</td></tr>`;
-    } else {
-      listCustomers.innerHTML = customers.map(c => {
-        return `<tr>
-          <td style="font-weight: bold;">${esc(c.data.name)}</td>
-          <td>${esc(c.data.phone)}</td>
-          <td>${esc(c.data.address)}</td>
           <td style="text-align:center;">
             <button class="personnel-del" style="float:none;" onclick="deleteAccountingRecord('${c.id}')" title="Kayıt Sil">✕</button>
           </td>
@@ -1550,8 +1516,9 @@
   // Bind Actions & Event Listeners
   $('btnMuhasebeLogout').addEventListener('click', handleLogout);
   $('btnUploadContract').addEventListener('click', handleAddContract);
-  $('btnAddDriver').addEventListener('click', handleAddDriver);
-  $('btnAddCustomer').addEventListener('click', handleAddCustomer);
+  // Driver and Customer buttons removed from HTML, event bindings commented out
+  // $('btnAddDriver').addEventListener('click', handleAddDriver);
+  // $('btnAddCustomer').addEventListener('click', handleAddCustomer);
 
   document.querySelectorAll('[data-muhasebe-tab]').forEach(t => {
     t.addEventListener('click', () => switchMuhasebeTab(t.getAttribute('data-muhasebe-tab')));
@@ -2937,6 +2904,63 @@
 
     saveAuditLog('Excel Aktarımı', `${tab.toUpperCase()} raporu Excel (XLS) olarak indirildi.`);
     showToast('Excel dosyası başarıyla indirildi.');
+  }
+
+  // --- PROJELER BÖLÜMÜ MANTIĞI ---
+  let projectsList = [];
+  async function loadProjectsAndRender() {
+    const tbody = $('projectsListTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--ink-soft);">Projeler yükleniyor...</td></tr>`;
+    
+    if (useSupabase) {
+      try {
+        const { data, error } = await supabase.from('projects').select('*').order('crm_code', { ascending: false });
+        if (error) throw error;
+        projectsList = (data || []).filter(p => p.id !== '__settings__');
+      } catch (e) {
+        await loadProjectsFromLocalStorage();
+      }
+    } else {
+      await loadProjectsFromLocalStorage();
+    }
+    
+    renderProjectsTable();
+  }
+
+  async function loadProjectsFromLocalStorage() {
+    try {
+      const val = await getStorageItem('mimari-projeler-listesi');
+      const list = val ? JSON.parse(val) : [];
+      projectsList = list.filter(p => p.id !== '__settings__');
+    } catch (e) {
+      projectsList = [];
+    }
+  }
+
+  function renderProjectsTable() {
+    const tbody = $('projectsListTableBody');
+    if (!tbody) return;
+
+    if (projectsList.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--ink-soft);">Kayıtlı proje bulunmamaktadır.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = projectsList.map(p => {
+      let statusColor = 'var(--ink-soft)';
+      if (p.status === 'Tamamlandı') statusColor = 'var(--success)';
+      else if (p.status === 'Devam Ediyor') statusColor = 'var(--accent-dark)';
+      else if (p.status === 'İptal') statusColor = 'var(--danger)';
+
+      return `<tr>
+        <td style="font-family:monospace; font-weight:bold;">${esc(p.crm_code)}</td>
+        <td style="font-weight:700;">${esc(p.company)}</td>
+        <td>${esc(p.project_type || '—')}</td>
+        <td><span style="color:${statusColor}; font-weight:bold;">● ${esc(p.status || '—')}</span></td>
+        <td>${fmtDate(p.date)}</td>
+      </tr>`;
+    }).join('');
   }
 
   // --- Initializer ---
