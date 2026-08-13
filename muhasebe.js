@@ -2908,11 +2908,27 @@
 
   // --- PROJELER BÖLÜMÜ MANTIĞI ---
   let projectsList = [];
+  let projectsExtraData = {};
+
+  function parseProjectsExtra() {
+    projectsExtraData = {};
+    // accountingRecords is sorted descending by created_at, so first found is the latest.
+    accountingRecords.filter(r => r.type === 'project_extra').forEach(r => {
+      const pId = r.data.projectId;
+      if (!projectsExtraData[pId]) {
+        projectsExtraData[pId] = r.data;
+      }
+    });
+  }
+
   async function loadProjectsAndRender() {
     const tbody = $('projectsListTableBody');
     if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--ink-soft);">Projeler yükleniyor...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:var(--ink-soft);">Projeler yükleniyor...</td></tr>`;
     
+    await loadAccountingRecords();
+    parseProjectsExtra();
+
     if (useSupabase) {
       try {
         const { data, error } = await supabase.from('projects').select('*').order('crm_code', { ascending: false });
@@ -2938,14 +2954,40 @@
     }
   }
 
+  function getProjectExtraValues(pId) {
+    const defaultVals = {
+      contract_status: 'bekliyor',
+      production_status: 'bekliyor',
+      loading_status: 'bekliyor',
+      collected_amount: 0,
+      approval_status: 'onaylandi',
+      pending_changes: null
+    };
+    
+    const extra = projectsExtraData[pId];
+    if (!extra) return defaultVals;
+    
+    return {
+      contract_status: extra.contract_status || 'bekliyor',
+      production_status: extra.production_status || 'bekliyor',
+      loading_status: extra.loading_status || 'bekliyor',
+      collected_amount: parseFloat(extra.collected_amount || 0),
+      approval_status: extra.approval_status || 'onaylandi',
+      pending_changes: extra.pending_changes || null
+    };
+  }
+
   function renderProjectsTable() {
     const tbody = $('projectsListTableBody');
     if (!tbody) return;
 
     if (projectsList.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--ink-soft);">Kayıtlı proje bulunmamaktadır.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:30px; color:var(--ink-soft);">Kayıtlı proje bulunmamaktadır.</td></tr>`;
       return;
     }
+
+    const userRole = (currentUser && currentUser.role) || 'MUHASEBE';
+    const isManager = userRole === 'admin' || userRole === 'YÖNETİM' || userRole === 'YÖNETİCİ';
 
     tbody.innerHTML = projectsList.map(p => {
       let statusColor = 'var(--ink-soft)';
@@ -2953,15 +2995,178 @@
       else if (p.status === 'Devam Ediyor') statusColor = 'var(--accent-dark)';
       else if (p.status === 'İptal') statusColor = 'var(--danger)';
 
+      const extra = getProjectExtraValues(p.id);
+      
+      // Determine what values to show
+      let showContract = extra.contract_status;
+      let showProduction = extra.production_status;
+      let showLoading = extra.loading_status;
+      let showCollected = extra.collected_amount;
+
+      // Badges
+      const contractBadge = showContract === 'hazırlandı' 
+        ? `<span class="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-800">hazırlandı</span>`
+        : `<span class="px-2 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-800">bekliyor</span>`;
+      
+      const productionBadge = showProduction === 'hazırlandı'
+        ? `<span class="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-800">hazırlandı</span>`
+        : `<span class="px-2 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-800">bekliyor</span>`;
+
+      const loadingBadge = showLoading === 'tamamlandı'
+        ? `<span class="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-800">tamamlandı</span>`
+        : `<span class="px-2 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-800">bekliyor</span>`;
+
+      // Actions / Approval Column
+      let actionHtml = '';
+      if (extra.approval_status === 'onay_bekliyor') {
+        const changes = extra.pending_changes || {};
+        const changesDesc = `Sözleşme: ${changes.contract_status}, Üretim: ${changes.production_status}, Yükleme: ${changes.loading_status}, Tahsilat: ${parseFloat(changes.collected_amount || 0).toFixed(2)} TL`;
+        
+        if (isManager) {
+          actionHtml = `
+            <div class="flex flex-col gap-1 items-center" style="display:flex; flex-direction:column; gap:4px; align-items:center;">
+              <span class="text-xs text-amber-600 font-bold" title="${changesDesc}">Onay Bekliyor ⏳</span>
+              <div style="display:flex; gap:4px;">
+                <button class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2 py-1 rounded" onclick="approveProjectChanges('${p.id}')">Onayla</button>
+                <button class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2 py-1 rounded" onclick="rejectProjectChanges('${p.id}')">Reddet</button>
+              </div>
+            </div>
+          `;
+        } else {
+          actionHtml = `<span class="text-xs text-amber-600 font-bold" title="${changesDesc}">Onay Bekliyor ⏳</span>`;
+        }
+      } else {
+        actionHtml = `<button class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-1 rounded" onclick="openEditProjectModal('${p.id}')">Düzenle</button>`;
+      }
+
       return `<tr>
         <td style="font-family:monospace; font-weight:bold;">${esc(p.crm_code)}</td>
         <td style="font-weight:700;">${esc(p.company)}</td>
         <td>${esc(p.project_type || '—')}</td>
         <td><span style="color:${statusColor}; font-weight:bold;">● ${esc(p.status || '—')}</span></td>
-        <td>${fmtDate(p.date)}</td>
+        <td>${contractBadge}</td>
+        <td>${productionBadge}</td>
+        <td>${loadingBadge}</td>
+        <td style="text-align:right; font-weight:bold;">${showCollected.toFixed(2)} TL</td>
+        <td style="text-align:center;">${actionHtml}</td>
       </tr>`;
     }).join('');
   }
+
+  // --- PROJECT ACTIONS (EDIT, APPROVE, REJECT) ---
+  window.openEditProjectModal = function(projectId) {
+    const p = projectsList.find(pr => pr.id === projectId);
+    if (!p) return;
+
+    const extra = getProjectExtraValues(projectId);
+    
+    // Fill values (use proposed changes if pending, otherwise approved)
+    const base = extra.approval_status === 'onay_bekliyor' && extra.pending_changes ? extra.pending_changes : extra;
+
+    $('mdlEditProjectId').value = projectId;
+    $('mdlSelContractStatus').value = base.contract_status || 'bekliyor';
+    $('mdlSelProductionStatus').value = base.production_status || 'bekliyor';
+    $('mdlSelLoadingStatus').value = base.loading_status || 'bekliyor';
+    $('mdlInpCollectedAmount').value = base.collected_amount || 0;
+
+    $('mdlEditProject').classList.remove('hidden');
+  };
+
+  $('btnCancelEditProject').addEventListener('click', () => {
+    $('mdlEditProject').classList.add('hidden');
+  });
+
+  $('btnSaveEditProject').addEventListener('click', async () => {
+    const projectId = $('mdlEditProjectId').value;
+    const contract_status = $('mdlSelContractStatus').value;
+    const production_status = $('mdlSelProductionStatus').value;
+    const loading_status = $('mdlSelLoadingStatus').value;
+    const collected_amount = parseFloat($('mdlInpCollectedAmount').value || 0);
+
+    const oldExtra = getProjectExtraValues(projectId);
+
+    const extraData = {
+      projectId,
+      contract_status: oldExtra.contract_status, // Keep original values as approved
+      production_status: oldExtra.production_status,
+      loading_status: oldExtra.loading_status,
+      collected_amount: oldExtra.collected_amount,
+      approval_status: 'onay_bekliyor',
+      pending_changes: {
+        contract_status,
+        production_status,
+        loading_status,
+        collected_amount
+      }
+    };
+
+    const record = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      type: 'project_extra',
+      data: extraData,
+      uploadedBy: currentUser ? (currentUser.personnelName || currentUser.username) : 'Anonim',
+      createdAt: new Date().toISOString()
+    };
+
+    await saveAccountingRecord(record);
+    $('mdlEditProject').classList.add('hidden');
+    showToast('Değişiklikler onay için yöneticiye gönderildi.');
+    await loadProjectsAndRender();
+  });
+
+  window.approveProjectChanges = async function(projectId) {
+    const extra = getProjectExtraValues(projectId);
+    if (!extra || !extra.pending_changes) return;
+
+    const approvedData = {
+      projectId,
+      contract_status: extra.pending_changes.contract_status,
+      production_status: extra.pending_changes.production_status,
+      loading_status: extra.pending_changes.loading_status,
+      collected_amount: extra.pending_changes.collected_amount,
+      approval_status: 'onaylandi',
+      pending_changes: null
+    };
+
+    const record = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      type: 'project_extra',
+      data: approvedData,
+      uploadedBy: currentUser ? (currentUser.personnelName || currentUser.username) : 'Anonim',
+      createdAt: new Date().toISOString()
+    };
+
+    await saveAccountingRecord(record);
+    showToast('Değişiklikler başarıyla onaylandı.');
+    await loadProjectsAndRender();
+  };
+
+  window.rejectProjectChanges = async function(projectId) {
+    const extra = getProjectExtraValues(projectId);
+    if (!extra) return;
+
+    const rejectedData = {
+      projectId,
+      contract_status: extra.contract_status,
+      production_status: extra.production_status,
+      loading_status: extra.loading_status,
+      collected_amount: extra.collected_amount,
+      approval_status: 'onaylandi', // Reset to approved state
+      pending_changes: null
+    };
+
+    const record = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      type: 'project_extra',
+      data: rejectedData,
+      uploadedBy: currentUser ? (currentUser.personnelName || currentUser.username) : 'Anonim',
+      createdAt: new Date().toISOString()
+    };
+
+    await saveAccountingRecord(record);
+    showToast('Değişiklikler reddedildi.');
+    await loadProjectsAndRender();
+  };
 
   // --- Initializer ---
   async function init() {
