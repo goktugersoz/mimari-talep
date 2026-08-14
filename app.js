@@ -348,7 +348,22 @@
       return;
     }
 
-    const isFabrika = currentUser && currentUser.role === 'FABRİKA';
+    const FABRIKA_ROLES = [
+      'FABRİKA',
+      'Panel Grubu',
+      'Metal Grubu',
+      'Kapı ve Pencere Grubu',
+      'Alçıpan ve Kaplama grubu',
+      'Çatı Makas grubu',
+      'Çatı Sacı grubu',
+      'Elektrik tesisat g',
+      'Vida grubu',
+      'Depo Grubu',
+      'Tesisat grubu',
+      'Çatı oluk grubu',
+      'Boya mastik grubu'
+    ];
+    const isFabrika = currentUser && FABRIKA_ROLES.includes(currentUser.role);
     if (isFabrika) {
       window.location.href = 'fabrika.html';
       return;

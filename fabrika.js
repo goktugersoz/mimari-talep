@@ -45,7 +45,22 @@
     if (stored) {
       try {
         const u = JSON.parse(stored);
-        const isAuthorized = u && (u.role === 'FABRİKA' || u.role === 'admin' || u.role === 'YÖNETİM' || u.role === 'YÖNETİCİ');
+        const FABRIKA_ROLES = [
+          'FABRİKA',
+          'Panel Grubu',
+          'Metal Grubu',
+          'Kapı ve Pencere Grubu',
+          'Alçıpan ve Kaplama grubu',
+          'Çatı Makas grubu',
+          'Çatı Sacı grubu',
+          'Elektrik tesisat g',
+          'Vida grubu',
+          'Depo Grubu',
+          'Tesisat grubu',
+          'Çatı oluk grubu',
+          'Boya mastik grubu'
+        ];
+        const isAuthorized = u && (FABRIKA_ROLES.includes(u.role) || u.role === 'admin' || u.role === 'YÖNETİM' || u.role === 'YÖNETİCİ');
         if (isAuthorized) {
           currentUser = u;
           $('lblCurrentFabrikaUser').textContent = `${currentUser.username} (${currentUser.role})`;
