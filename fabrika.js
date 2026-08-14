@@ -171,11 +171,11 @@
     $('inpFabrikaPhotoFile').value = '';
     $('inpFabrikaNotes').value = '';
     attachedPhotoFile = null;
-    $('uploadPhotoModal').classList.remove('hidden');
+    $('uploadPhotoModal').style.display = 'flex';
   };
 
   window.closeUploadModal = function() {
-    $('uploadPhotoModal').classList.add('hidden');
+    $('uploadPhotoModal').style.display = 'none';
   };
 
   async function uploadFileToSupabase(fileObj) {
