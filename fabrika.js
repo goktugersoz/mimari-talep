@@ -127,7 +127,7 @@
 
     tbody.innerHTML = ordersList.map(o => {
       let excelLink = o.excel_url 
-        ? `<a href="${esc(o.excel_url)}" target="_blank" class="text-blue-600 hover:underline font-bold" style="display:flex; align-items:center; gap:4px;">📎 ${esc(o.excel_name || 'Excel İndir')}</a>` 
+        ? `<a href="${esc(o.excel_url)}" onclick="downloadUrlWithCleanName(event, '${esc(o.excel_url)}')" class="text-blue-600 hover:underline font-bold" style="display:flex; align-items:center; gap:4px;">📎 ${esc(o.excel_name || 'Excel İndir')}</a>` 
         : '';
 
       let dwgLink = '';
@@ -138,14 +138,14 @@
         const dwgRegex = /AutoCAD DWG:\s*([^\(]+)\s*\((https?:\/\/[^\)]+)\)/i;
         const dwgMatch = o.notes.match(dwgRegex);
         if (dwgMatch) {
-          dwgLink = `<a href="${esc(dwgMatch[2])}" target="_blank" class="text-red-600 hover:underline font-bold" style="display:flex; align-items:center; gap:4px; margin-top:4px;">📐 ${esc(dwgMatch[1].trim())}</a>`;
+          dwgLink = `<a href="${esc(dwgMatch[2])}" onclick="downloadUrlWithCleanName(event, '${esc(dwgMatch[2])}')" class="text-red-600 hover:underline font-bold" style="display:flex; align-items:center; gap:4px; margin-top:4px;">📐 ${esc(dwgMatch[1].trim())}</a>`;
           cleanNotes = cleanNotes.replace(dwgMatch[0], '');
         }
 
         const axdRegex = /AXD Dosyası:\s*([^\(]+)\s*\((https?:\/\/[^\)]+)\)/i;
         const axdMatch = o.notes.match(axdRegex);
         if (axdMatch) {
-          axdLink = `<a href="${esc(axdMatch[2])}" target="_blank" class="text-orange-600 hover:underline font-bold" style="display:flex; align-items:center; gap:4px; margin-top:4px;">📄 ${esc(axdMatch[1].trim())}</a>`;
+          axdLink = `<a href="${esc(axdMatch[2])}" onclick="downloadUrlWithCleanName(event, '${esc(axdMatch[2])}')" class="text-orange-600 hover:underline font-bold" style="display:flex; align-items:center; gap:4px; margin-top:4px;">📄 ${esc(axdMatch[1].trim())}</a>`;
           cleanNotes = cleanNotes.replace(axdMatch[0], '');
         }
       }
@@ -296,6 +296,52 @@
     $('btnFabrikaGoToBoard').addEventListener('click', () => { window.location.href = 'index.html'; });
   }
   $('btnSubmitFabrikaPhoto').addEventListener('click', submitFabrikaPhoto);
+
+  function getCleanFileName(url) {
+    if (!url) return 'dosya';
+    let filename = url.split('/').pop();
+    try {
+      filename = decodeURIComponent(filename);
+    } catch(e){}
+    filename = filename.replace(/^\d+_/, '');
+    filename = filename.replace(/_+/g, ' ');
+    const parts = filename.split('.');
+    if (parts.length > 2) {
+      const ext = parts.pop();
+      const prev = parts[parts.length - 1];
+      if (prev.toLowerCase() === ext.toLowerCase()) {
+        parts.pop();
+      }
+      filename = parts.join('.') + '.' + ext;
+    }
+    return filename;
+  }
+
+  window.downloadUrlWithCleanName = async function(e, url) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const cleanName = getCleanFileName(url);
+    showToast('Dosya indiriliyor...');
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP error ' + res.status);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = cleanName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      showToast('Dosya indirildi.');
+    } catch (err) {
+      console.error("Download failed: ", err);
+      window.open(url, '_blank');
+    }
+  };
 
   loadOrders();
 })();
