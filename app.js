@@ -365,7 +365,26 @@
       if ($('btnGoToYonetim')) $('btnGoToYonetim').classList.add('hidden');
       if ($('btnGoToAccounting')) $('btnGoToAccounting').classList.add('hidden');
     }
-    switchTab('board');
+    const tabContainer = document.querySelector('.tabs');
+    const tabBoard = document.querySelector('.tab[data-tab="board"]');
+    const tabForm = document.querySelector('.tab[data-tab="form"]');
+    const tabDrafts = document.querySelector('.tab[data-tab="drafts"]');
+
+    if (currentUser.role === 'PROJE') {
+      if (tabContainer && tabBoard && tabForm && tabDrafts) {
+        tabContainer.appendChild(tabDrafts);
+        tabContainer.appendChild(tabForm);
+        tabContainer.appendChild(tabBoard);
+      }
+      switchTab('drafts');
+    } else {
+      if (tabContainer && tabBoard && tabForm && tabDrafts) {
+        tabContainer.appendChild(tabBoard);
+        tabContainer.appendChild(tabForm);
+        tabContainer.appendChild(tabDrafts);
+      }
+      switchTab('board');
+    }
   }
 
   let monthlyChartInstance = null;
