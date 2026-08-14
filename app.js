@@ -1481,6 +1481,7 @@
     $('tbTopTitle').textContent = 'TALEBİ DÜZENLE';
     $('btnSubmit').textContent = 'Değişiklikleri Kaydet';
     $('btnCancelEdit').classList.remove('hidden');
+    if ($('btnSendToFabrika')) $('btnSendToFabrika').classList.remove('hidden');
 
     switchTab('form');
   }
@@ -1955,6 +1956,7 @@
     $('tbTopTitle').textContent = 'ÇİZİM TALEP KİMLİK BLOĞU';
     $('btnSubmit').textContent = 'Listeye Ekle';
     $('btnCancelEdit').classList.add('hidden');
+    if ($('btnSendToFabrika')) $('btnSendToFabrika').classList.add('hidden');
   }
 
   // ---- tabs ----
@@ -2421,6 +2423,33 @@
   searchInput.addEventListener('input', renderGrid);
   $('btnSubmit').addEventListener('click', submitForm);
   $('btnCancelEdit').addEventListener('click', cancelEdit);
+  if ($('btnSendToFabrika')) {
+    $('btnSendToFabrika').addEventListener('click', async () => {
+      if (!editingProjectId) return;
+      const p = projects.find(pr => pr.id === editingProjectId);
+      if (!p) return;
+
+      const hasDwg = (p.fileDwgData && p.fileDwgData.trim() !== '') || (attachedFiles.dwg && attachedFiles.dwg.data);
+      const hasAxd = (p.fileAxdData && p.fileAxdData.trim() !== '') || (attachedFiles.axd && attachedFiles.axd.data);
+      const hasExcel = (p.fileExcelData && p.fileExcelData.trim() !== '') || (attachedFiles.excel && attachedFiles.excel.data);
+
+      if (!hasDwg || !hasAxd || !hasExcel) {
+        const missing = [];
+        if (!hasDwg) missing.push("AutoCAD (.dwg)");
+        if (!hasAxd) missing.push("AXD (.axd)");
+        if (!hasExcel) missing.push("Excel (.xls/.xlsx)");
+        showToast(`Fabrikaya göndermek için eksik dosyaları yüklemelisiniz: ${missing.join(', ')}`, true);
+        return;
+      }
+
+      const btn = $('btnSendToFabrika');
+      btn.disabled = true;
+      showToast('Fabrikaya gönderiliyor...');
+      await sendProjectToFabrika(p);
+      showToast('Proje başarıyla fabrikaya gönderildi!');
+      btn.disabled = false;
+    });
+  }
   $('inpDate').value = todayISO();
   renderCompanyOptions();
   renderTypeOptions();
