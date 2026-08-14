@@ -82,7 +82,9 @@
         if (parsed && typeof parsed === 'object') {
           return {
             customerName: parsed.customerName || '',
-            notes: parsed.notes || ''
+            notes: parsed.notes || '',
+            createdAt: parsed.createdAt || null,
+            updatedAt: parsed.updatedAt || null
           };
         }
       } catch (e) {
@@ -91,17 +93,22 @@
     }
     return {
       customerName: '',
-      notes: notesStr
+      notes: notesStr,
+      createdAt: null,
+      updatedAt: null
     };
   }
 
-  function serializeNotesField(customerName, notes) {
-    if (!customerName) return notes;
+  function serializeNotesField(customerName, notes, createdAt, updatedAt) {
     return JSON.stringify({
-      customerName: customerName.trim(),
-      notes: (notes || '').trim()
+      customerName: (customerName || '').trim(),
+      notes: (notes || '').trim(),
+      createdAt: createdAt || new Date().toISOString(),
+      updatedAt: updatedAt || new Date().toISOString()
     });
   }
+
+  // serializeNotesField removed from here, integrated above parseNotesField
 
   function toTitleCase(str) {
     return str.split(' ').map(word => {
@@ -660,6 +667,17 @@
     return `${d}.${m}.${y}`;
   }
 
+  function fmtDateTime(iso) {
+    if (!iso) return '—';
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch(e) {
+      return '—';
+    }
+  }
+
   // ---- storage ----
   async function loadProjects() {
     if (!storageAvailable()) {
@@ -705,7 +723,9 @@
             status: p.status,
             date: p.date,
             notes: notesParsed.notes,
-            customerName: notesParsed.customerName
+            customerName: notesParsed.customerName,
+            createdAt: notesParsed.createdAt,
+            updatedAt: notesParsed.updatedAt
           };
 
           let fName = p.file_name;
@@ -759,7 +779,9 @@
           return {
             ...p,
             notes: notesParsed.notes,
-            customerName: p.customerName || notesParsed.customerName || ''
+            customerName: p.customerName || notesParsed.customerName || '',
+            createdAt: p.createdAt || notesParsed.createdAt || null,
+            updatedAt: p.updatedAt || notesParsed.updatedAt || null
           };
         }) : [];
       } catch (e) {
@@ -1290,6 +1312,8 @@
             <div class="card-row"><span>Personel</span><b>${esc(p.employee) || '—'}</b></div>
             <div class="card-row"><span>Tarih</span><b>${fmtDate(p.date)}</b></div>
             ${p.customerName ? `<div class="card-row"><span>Müşteri</span><b>${esc(p.customerName)}</b></div>` : ''}
+            <div class="card-row"><span>Eklenme</span><b style="font-size:11px;">${fmtDateTime(p.createdAt)}</b></div>
+            ${p.updatedAt && p.updatedAt !== p.createdAt ? `<div class="card-row"><span>Güncellenme</span><b style="font-size:11px;">${fmtDateTime(p.updatedAt)}</b></div>` : ''}
             <span class="card-type">${esc(p.projectType)}</span>
           </div>
           
@@ -1452,12 +1476,16 @@
       }
     }
 
+    const updatedAt = new Date().toISOString();
+    const notesRaw = serializeNotesField(p.customerName || '', p.notes || '', p.createdAt, updatedAt);
+
     let ok = false;
     if (useSupabase) {
       try {
-        const { error } = await supabase.from('projects').update({ status: newStatus }).eq('id', id);
+        const { error } = await supabase.from('projects').update({ status: newStatus, notes: notesRaw }).eq('id', id);
         if (error) throw error;
         p.status = newStatus;
+        p.updatedAt = updatedAt;
         ok = true;
       } catch (e) {
         console.error(e);
@@ -1465,6 +1493,7 @@
       }
     } else {
       p.status = newStatus;
+      p.updatedAt = updatedAt;
       ok = await saveProjects();
     }
 
@@ -1578,7 +1607,9 @@
           const employee = $('selEmployee').value.trim();
           const date = $('inpDate').value || todayISO();
           const notes = $('inpNotes').value.trim();
-          const notesRaw = serializeNotesField(customerName, notes);
+          const createdAt = p ? p.createdAt : new Date().toISOString();
+          const updatedAt = new Date().toISOString();
+          const notesRaw = serializeNotesField(customerName, notes, createdAt, updatedAt);
           const fileDwgName = attachedFiles.dwg ? attachedFiles.dwg.name : null;
           const fileDwgSize = attachedFiles.dwg ? attachedFiles.dwg.size : null;
           const fileDwgData = fileUrls.dwg;
@@ -1620,6 +1651,10 @@
           p.date = date;
           p.notes = notes;
           p.customerName = customerName;
+          p.createdAt = createdAt;
+          p.updatedAt = updatedAt;
+          p.notes = notes;
+          p.customerName = customerName;
           p.fileDwgName = fileDwgName;
           p.fileDwgSize = fileDwgSize;
           p.fileDwgData = fileDwgData;
@@ -1642,7 +1677,9 @@
         const employee = $('selEmployee').value.trim();
         const date = $('inpDate').value || todayISO();
         const notes = $('inpNotes').value.trim();
-        const notesRaw = serializeNotesField(customerName, notes);
+        const createdAt = new Date().toISOString();
+        const updatedAt = createdAt;
+        const notesRaw = serializeNotesField(customerName, notes, createdAt, updatedAt);
         const fileDwgName = attachedFiles.dwg ? attachedFiles.dwg.name : null;
         const fileDwgSize = attachedFiles.dwg ? attachedFiles.dwg.size : null;
         const fileDwgData = fileUrls.dwg;
@@ -1697,7 +1734,9 @@
           fileExcelData,
           fileAxdName,
           fileAxdSize,
-          fileAxdData
+          fileAxdData,
+          createdAt,
+          updatedAt
         };
         projects.push(entry);
 
