@@ -355,6 +355,14 @@
     } else {
       $('tab-admin').classList.add('hidden');
     }
+
+    if (isManager) {
+      if ($('btnGoToYonetim')) $('btnGoToYonetim').classList.remove('hidden');
+      if ($('btnGoToAccounting')) $('btnGoToAccounting').classList.remove('hidden');
+    } else {
+      if ($('btnGoToYonetim')) $('btnGoToYonetim').classList.add('hidden');
+      if ($('btnGoToAccounting')) $('btnGoToAccounting').classList.add('hidden');
+    }
     switchTab('board');
   }
 
@@ -2160,6 +2168,12 @@
     if (e.key === 'Enter') { e.preventDefault(); handleLogin(); }
   });
   $('btnLogout').addEventListener('click', handleLogout);
+  if ($('btnGoToYonetim')) {
+    $('btnGoToYonetim').addEventListener('click', () => { window.location.href = 'yonetim.html'; });
+  }
+  if ($('btnGoToAccounting')) {
+    $('btnGoToAccounting').addEventListener('click', () => { window.location.href = 'muhasebe.html'; });
+  }
   $('btnAdminAddUser').addEventListener('click', addAdminUser);
   $('inpAdminNewPass').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); addAdminUser(); }

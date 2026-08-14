@@ -131,10 +131,16 @@
     if (stored) {
       try {
         const u = JSON.parse(stored);
-        const isAccountant = u && (u.role === 'MUHASEBE' || u.role === 'MUHASEBECİ' || u.role === 'admin' || u.role === 'YÖNETİM');
+        const isAccountant = u && (u.role === 'MUHASEBE' || u.role === 'MUHASEBECİ' || u.role === 'admin' || u.role === 'YÖNETİM' || u.role === 'YÖNETİCİ');
         if (isAccountant) {
           currentUser = u;
           $('lblCurrentMuhasebeUser').textContent = `${currentUser.username} (${currentUser.role})`;
+          
+          const isManager = currentUser && (currentUser.role === 'admin' || currentUser.role === 'YÖNETİM' || currentUser.role === 'YÖNETİCİ');
+          if (isManager) {
+            if ($('btnMuhasebeGoToYonetim')) $('btnMuhasebeGoToYonetim').classList.remove('hidden');
+            if ($('btnMuhasebeGoToBoard')) $('btnMuhasebeGoToBoard').classList.remove('hidden');
+          }
           return;
         }
       } catch (e) { }
@@ -1515,6 +1521,12 @@
 
   // Bind Actions & Event Listeners
   $('btnMuhasebeLogout').addEventListener('click', handleLogout);
+  if ($('btnMuhasebeGoToYonetim')) {
+    $('btnMuhasebeGoToYonetim').addEventListener('click', () => { window.location.href = 'yonetim.html'; });
+  }
+  if ($('btnMuhasebeGoToBoard')) {
+    $('btnMuhasebeGoToBoard').addEventListener('click', () => { window.location.href = 'index.html'; });
+  }
   $('btnUploadContract').addEventListener('click', handleAddContract);
   // Driver and Customer buttons removed from HTML, event bindings commented out
   // $('btnAddDriver').addEventListener('click', handleAddDriver);
