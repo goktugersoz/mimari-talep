@@ -870,7 +870,9 @@
           <button class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 py-1.5 rounded font-bold" onclick="rejectFabrikaOrder('${o.id}')">Reddet</button>
         `;
       }
-      actionButtons += `</div>`;
+      actionButtons += `
+          <button class="bg-red-600 hover:bg-red-700 text-white text-xs px-2.5 py-1.5 rounded font-bold" onclick="deleteFabrikaOrder('${o.id}')">Sil</button>
+      </div>`;
 
       return `<tr>
         <td style="font-size:11px; color:var(--ink-soft);">${fmtDate(o.created_at)}</td>
@@ -1016,6 +1018,23 @@
       await loadFabrikaOrders();
     } catch(e) {
       showToast('İşlem başarısız: ' + e.message, true);
+    }
+  };
+
+  window.deleteFabrikaOrder = async function(id) {
+    if (!confirm('Bu fabrika siparişini silmek istediğinize emin misiniz?')) return;
+    try {
+      if (useSupabase) {
+        const { error } = await supabase.from('fabrika_orders').delete().eq('id', id);
+        if (error) throw error;
+      } else {
+        fabrikaOrders = fabrikaOrders.filter(x => x.id !== id);
+        await saveFabrikaOrdersToLocalStorage();
+      }
+      showToast('Fabrika siparişi silindi.');
+      await loadFabrikaOrders();
+    } catch(e) {
+      showToast('Silme hatası: ' + e.message, true);
     }
   };
 
