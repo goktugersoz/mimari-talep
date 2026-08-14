@@ -804,11 +804,11 @@
     document.querySelectorAll('[data-yonetim-tab]').forEach(tab => {
       tab.classList.toggle('active', tab.getAttribute('data-yonetim-tab') === tabName);
     });
-    $('panel-projects-pending').classList.toggle('hidden', tabName !== 'projects-pending');
-    $('panel-purchase-pending').classList.toggle('hidden', tabName !== 'purchase-pending');
-    $('panel-personnel').classList.toggle('hidden', tabName !== 'personnel');
-    $('panel-stats').classList.toggle('hidden', tabName !== 'stats');
-    $('panel-admin').classList.toggle('hidden', tabName !== 'admin');
+    if ($('panel-projects-pending')) $('panel-projects-pending').classList.toggle('hidden', tabName !== 'projects-pending');
+    if ($('panel-purchase-pending')) $('panel-purchase-pending').classList.toggle('hidden', tabName !== 'purchase-pending');
+    if ($('panel-personnel')) $('panel-personnel').classList.toggle('hidden', tabName !== 'personnel');
+    if ($('panel-stats')) $('panel-stats').classList.toggle('hidden', tabName !== 'stats');
+    if ($('panel-admin')) $('panel-admin').classList.toggle('hidden', tabName !== 'admin');
     
     if (tabName === 'stats') {
       renderStats();
