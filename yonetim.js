@@ -841,8 +841,39 @@
 
     tbody.innerHTML = fabrikaOrders.map(o => {
       let excelLink = o.excel_url
-        ? `<a href="${esc(o.excel_url)}" target="_blank" class="text-blue-600 hover:underline font-bold">📎 ${esc(o.excel_name || 'Excel İndir')}</a>`
-        : '—';
+        ? `<a href="${esc(o.excel_url)}" target="_blank" class="text-blue-600 hover:underline font-bold" style="display:flex; align-items:center; gap:4px;">📎 ${esc(o.excel_name || 'Excel İndir')}</a>`
+        : '';
+
+      let dwgLink = '';
+      let axdLink = '';
+      let cleanNotes = o.notes || '';
+      
+      if (o.notes) {
+        const dwgRegex = /AutoCAD DWG:\s*([^\(]+)\s*\((https?:\/\/[^\)]+)\)/i;
+        const dwgMatch = o.notes.match(dwgRegex);
+        if (dwgMatch) {
+          dwgLink = `<a href="${esc(dwgMatch[2])}" target="_blank" class="text-red-600 hover:underline font-bold" style="display:flex; align-items:center; gap:4px; margin-top:4px;">📐 ${esc(dwgMatch[1].trim())}</a>`;
+          cleanNotes = cleanNotes.replace(dwgMatch[0], '');
+        }
+
+        const axdRegex = /AXD Dosyası:\s*([^\(]+)\s*\((https?:\/\/[^\)]+)\)/i;
+        const axdMatch = o.notes.match(axdRegex);
+        if (axdMatch) {
+          axdLink = `<a href="${esc(axdMatch[2])}" target="_blank" class="text-orange-600 hover:underline font-bold" style="display:flex; align-items:center; gap:4px; margin-top:4px;">📄 ${esc(axdMatch[1].trim())}</a>`;
+          cleanNotes = cleanNotes.replace(axdMatch[0], '');
+        }
+      }
+
+      let filesHtml = [excelLink, dwgLink, axdLink].filter(Boolean).join('');
+      if (!filesHtml) filesHtml = '—';
+
+      const crmMatch = o.title ? o.title.match(/\((\d{2}-\d{5})\)/) : null;
+      let displayTitle = o.title || '';
+      let crmBadge = '';
+      if (crmMatch) {
+        crmBadge = `<span class="px-2 py-0.5 text-xs font-bold rounded bg-slate-200 text-slate-800" style="font-family:monospace; margin-right:6px;">${crmMatch[1]}</span>`;
+        displayTitle = displayTitle.replace(crmMatch[0], '').trim();
+      }
 
       let photoDisplay = '—';
       if (o.photo_url) {
@@ -872,9 +903,9 @@
 
       return `<tr>
         <td style="font-size:11px; color:var(--ink-soft);">${fmtDate(o.created_at)}</td>
-        <td><strong>${esc(o.title)}</strong></td>
-        <td>${excelLink}</td>
-        <td style="font-size:12px; max-width:200px; overflow:hidden; text-overflow:ellipsis;">${esc(o.notes || '—')}</td>
+        <td>${crmBadge}<strong>${esc(displayTitle)}</strong></td>
+        <td>${filesHtml}</td>
+        <td style="font-size:12px; max-width:200px; white-space:pre-wrap;">${esc(cleanNotes.trim() || '—')}</td>
         <td>${photoDisplay}</td>
         <td>${statusBadge}</td>
         <td style="text-align:center;">${actionsHtml}</td>
