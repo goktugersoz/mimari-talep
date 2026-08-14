@@ -1541,6 +1541,69 @@
       renderPersonnelPanel();
       checkEmployeeWarning();
       showToast(p.status === 'Bekliyor' ? 'İş bekliyor olarak işaretlendi.' : 'İş yapıldı olarak işaretlendi.');
+      if (newStatus === 'Yapıldı') {
+        sendProjectToFabrika(p);
+      }
+    }
+  }
+
+  async function sendProjectToFabrika(p) {
+    const orderId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const createdAt = new Date().toISOString();
+    const title = `${p.company} (${p.crmCode}) - ${p.projectType}`;
+    const excelUrl = p.fileExcelData || '';
+    const excelName = p.fileExcelName || 'Excel Dosyası';
+    const excelSize = p.fileExcelSize || 0;
+    
+    const notesArr = [
+      `Bina Kodu: ${p.buildingCode || '—'}`,
+      `Bina Alanı: ${p.areaM2 || '—'}`,
+      p.notes ? `Proje Notu: ${p.notes}` : ''
+    ];
+    if (p.fileDwgData && p.fileDwgName) {
+      notesArr.push(`AutoCAD DWG: ${p.fileDwgName} (${p.fileDwgData})`);
+    }
+    if (p.fileAxdData && p.fileAxdName) {
+      notesArr.push(`AXD Dosyası: ${p.fileAxdName} (${p.fileAxdData})`);
+    }
+    const notes = notesArr.filter(Boolean).join('\n');
+
+    if (useSupabase) {
+      try {
+        const { error } = await supabase.from('fabrika_orders').insert({
+          id: orderId,
+          title: title,
+          excel_url: excelUrl,
+          excel_name: excelName,
+          excel_size: excelSize,
+          status: 'Bekliyor',
+          notes: notes,
+          created_at: createdAt,
+          updated_at: createdAt
+        });
+        if (error) throw error;
+      } catch (e) {
+        console.error("sendProjectToFabrika error:", e);
+      }
+    } else {
+      try {
+        const val = await getStorageItem('mimari-fabrika-talepleri');
+        const list = val ? JSON.parse(val) : [];
+        list.unshift({
+          id: orderId,
+          title: title,
+          excel_url: excelUrl,
+          excel_name: excelName,
+          excel_size: excelSize,
+          status: 'Bekliyor',
+          notes: notes,
+          created_at: createdAt,
+          updated_at: createdAt
+        });
+        await setStorageItem('mimari-fabrika-talepleri', JSON.stringify(list));
+      } catch (e) {
+        console.error("sendProjectToFabrika local error:", e);
+      }
     }
   }
 
