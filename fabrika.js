@@ -136,7 +136,7 @@
     if (!tbody) return;
 
     if (ordersList.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--ink-soft);">Yönetim tarafından gönderilmiş sipariş bulunmamaktadır.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--ink-soft);">Yönetim tarafından gönderilmiş sipariş bulunmamaktadır.</td></tr>`;
       return;
     }
 
@@ -202,7 +202,6 @@
       return `<tr>
         <td style="font-size:12px; color:var(--ink-soft);">${fmtDate(o.created_at)}</td>
         <td>${crmBadge}<strong>${esc(displayTitle)}</strong><div style="font-size:11px;color:var(--ink-soft);margin-top:4px;white-space:pre-wrap;">${esc(cleanNotes.trim() || '—')}</div></td>
-        <td>${filesHtml}</td>
         <td>${photoDisplay}</td>
         <td>${statusBadge}</td>
         <td style="text-align:center;">${actionsHtml}</td>
