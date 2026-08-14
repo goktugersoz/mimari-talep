@@ -10,6 +10,7 @@
     rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="icon" href="data:;base64,iVBORw0KGgo=">
 </head>
@@ -36,10 +37,13 @@
       🟢 Supabase veritabanı aktif ve bağlandı.
     </div>
 
-    <!-- TABS FOR APPROVAL CATEGORIES -->
+    <!-- TABS FOR APPROVAL CATEGORIES & MANAGEMENT -->
     <div class="tabs">
       <div class="tab active" data-yonetim-tab="projects-pending">PROJE GÜNCELLEME ONAYLARI (MUHASEBE)</div>
       <div class="tab" data-yonetim-tab="purchase-pending">SATIN ALMA ONAYLARI (DİĞER BİRİMLER)</div>
+      <div class="tab" data-yonetim-tab="personnel">PERSONEL</div>
+      <div class="tab" data-yonetim-tab="stats">İSTATİSTİKLER</div>
+      <div class="tab" data-yonetim-tab="admin">ADMİN PANELİ</div>
     </div>
 
     <!-- 1. PROJECTS APPROVALS PANEL -->
@@ -89,6 +93,86 @@
           </tbody>
         </table>
       </div>
+    </div>
+
+    <!-- 3. PERSONNEL PANEL -->
+    <div class="panel hidden" id="panel-personnel">
+      <p class="panel-lead" style="margin-bottom:15px; color:var(--ink-soft);">Ekipteki personeli buradan ekleyip çıkarabilirsiniz. Eklenen isimler, talep formundaki "Çizimi Alan Personel" listesinde seçilebilir hale gelir.</p>
+      <div class="personnel-add-row" style="display:flex; gap:10px; margin-bottom:15px;">
+        <input id="inpNewPersonnel" type="text" placeholder="Personel adı soyadı girin" style="flex:1; padding:8px; border:1px solid var(--line); border-radius:4px; font-family:'Roboto',sans-serif;">
+        <button type="button" id="btnAddPersonnel" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold" style="font-family:'Montserrat',sans-serif;">Personel Ekle</button>
+      </div>
+      <div id="personnelList"></div>
+    </div>
+
+    <!-- 4. STATS PANEL -->
+    <div class="panel hidden" id="panel-stats">
+      <h3 style="font-family:'Montserrat',sans-serif; margin-top:0;">Genel Durum</h3>
+      <div class="stats-grid" id="statsCardsContainer" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:25px;">
+        <!-- Kartlar JS ile doldurulacak -->
+      </div>
+      <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px;">Aylık Proje Yoğunluğu</h3>
+      <div class="chart-container" style="position:relative; height:300px; width:100%;">
+        <canvas id="monthlyChart"></canvas>
+      </div>
+    </div>
+
+    <!-- 5. ADMIN PANEL -->
+    <div class="panel hidden" id="panel-admin">
+      <p class="panel-lead" style="margin-bottom:15px; color:var(--ink-soft);">Sisteme giriş yapabilecek yeni kullanıcılar oluşturabilir, şifre belirleyebilir ve yetkilerini yönetebilirsiniz.</p>
+
+      <!-- GENEL AYARLAR -->
+      <div class="titleblock" style="max-width: 560px; margin: 0 0 30px 0;">
+        <div class="tb-top"><span>GENEL PROJE AYARLARI</span></div>
+        <div class="tb-grid" style="grid-template-columns: 1fr;">
+          <div class="cell">
+            <label>Sıradaki CRM Kodu Başlangıcı (örn. 26-00370 veya 27-00200)</label>
+            <input type="text" id="inpCrmStartCode" placeholder="örn. 26-00370" style="font-family:'JetBrains Mono',monospace;">
+            <div class="field-err">Lütfen geçerli bir CRM kodu girin (Format: YY-00000).</div>
+          </div>
+        </div>
+        <div class="tb-actions" style="justify-content: flex-end;">
+          <button class="btn-submit" id="btnAdminSaveSettings">Ayarları Kaydet</button>
+        </div>
+      </div>
+
+      <div class="titleblock" style="max-width: 560px; margin: 0 0 30px 0;">
+        <div class="tb-top"><span>YENİ KULLANICI OLUŞTUR</span></div>
+        <div class="tb-grid" style="grid-template-columns: 1fr 1fr;">
+          <div class="cell" id="cell-admin-user">
+            <label>Kullanıcı Adı</label>
+            <input type="text" id="inpAdminNewUser" placeholder="örn. ahmet">
+            <div class="field-err">Kullanıcı adı boş olamaz.</div>
+          </div>
+          <div class="cell" id="cell-admin-pass">
+            <label>Şifre</label>
+            <input type="text" id="inpAdminNewPass" placeholder="örn. 12345">
+            <div class="field-err">Şifre boş olamaz.</div>
+          </div>
+          <div class="cell full" id="cell-admin-personnel-name">
+            <label>Eşleşecek Personel Adı Soyadı</label>
+            <input type="text" id="inpAdminNewPersonnelName" placeholder="örn. Ahmet Yılmaz">
+            <div class="field-err">Personel adı boş olamaz.</div>
+          </div>
+          <div class="cell full">
+            <label>Yetki / Rol</label>
+            <div class="select-wrap">
+              <select id="selAdminNewRole">
+                <option value="MUHASEBE">MUHASEBE / MUHASEBECİ</option>
+                <option value="PROJE">PROJE</option>
+                <option value="FABRİKA">FABRİKA</option>
+                <option value="YÖNETİM">YÖNETİM</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="tb-actions" style="justify-content: flex-end;">
+          <button class="btn-submit" id="btnAdminAddUser">Kullanıcı Ekle</button>
+        </div>
+      </div>
+ 
+      <h4 style="font-family:'Space Grotesk',sans-serif; margin: 20px 0 10px 0;">Mevcut Kullanıcılar</h4>
+      <div id="usersList"></div>
     </div>
   </div>
 

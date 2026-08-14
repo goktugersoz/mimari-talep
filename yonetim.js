@@ -13,6 +13,7 @@
   const STORAGE_KEY_ACCOUNTING = 'mimari-muhasebe-kayitlari';
   const STORAGE_KEY_PURCHASE = 'mimari-satinalma-talepleri';
   const STORAGE_KEY_PURCHASE_LOGS = 'mimari-satinalma-islem-gecmisi';
+  const STORAGE_KEY_USERS = 'mimari-kullanicilar';
 
   let currentUser = null;
   let projectsList = [];
@@ -20,6 +21,11 @@
   let purchaseRequests = [];
   let projectsExtraData = {};
   let currentYonetimTab = 'projects-pending';
+
+  let personnelList = [];
+  let users = [];
+  let crmStartCode = '26-00370';
+  let monthlyChartInstance = null;
 
   const $ = (id) => document.getElementById(id);
   const toast = $('toast');
@@ -93,6 +99,9 @@
     await loadProjects();
     await loadAccountingRecords();
     await loadPurchaseRequests();
+    await loadPersonnel();
+    await loadUsers();
+    await loadCrmStartCode();
     
     parseProjectsExtra();
     renderAll();
@@ -238,6 +247,8 @@
   function renderAll() {
     renderProjectsApprovals();
     renderPurchaseApprovals();
+    renderPersonnelPanel();
+    renderUsersPanel();
   }
 
   function renderProjectsApprovals() {
@@ -420,6 +431,373 @@
     await loadData();
   };
 
+  // --- PERSONNEL MANAGEMENT ---
+  async function loadPersonnel() {
+    if (useSupabase) {
+      try {
+        const { data, error } = await supabase.from('personnel').select('name');
+        if (error) throw error;
+        personnelList = (data || []).map(p => p.name);
+      } catch (e) {
+        await loadPersonnelFromLocalStorage();
+      }
+    } else {
+      await loadPersonnelFromLocalStorage();
+    }
+  }
+
+  async function loadPersonnelFromLocalStorage() {
+    try {
+      const val = await getStorageItem('personel-listesi');
+      personnelList = val ? JSON.parse(val) : [];
+    } catch(e) { personnelList = []; }
+  }
+
+  async function savePersonnel() {
+    return await setStorageItem('personel-listesi', JSON.stringify(personnelList));
+  }
+
+  function renderPersonnelPanel() {
+    const list = $('personnelList');
+    if (!list) return;
+    if (personnelList.length === 0) {
+      list.innerHTML = `<div class="empty-state"><div class="big">Henüz personel eklenmemiş</div>Yukarıdaki alandan ilk personeli ekleyerek başlayın.</div>`;
+      return;
+    }
+    const sorted = [...personnelList].sort((a, b) => a.localeCompare(b, 'tr'));
+    list.innerHTML = sorted.map(name => {
+      const job = projectsList.find(p => p.employee === name && (p.status || 'Bekliyor') === 'Bekliyor');
+      const tag = job ? `<span class="personnel-busy-tag">AKTİF İŞ: ${esc(job.crm_code)}</span>` : '';
+      const delBtn = `<button class="personnel-del" onclick="removePersonnel('${esc(name)}')" title="Personeli sil">✕</button>`;
+      return `<div class="personnel-item">
+        <span class="personnel-name">${esc(name)}</span>
+        ${tag}
+        ${delBtn}
+      </div>`;
+    }).join('');
+  }
+
+  window.removePersonnel = async function(name) {
+    const job = projectsList.find(p => p.employee === name && (p.status || 'Bekliyor') === 'Bekliyor');
+    const msg = job
+      ? `"${name}" adlı personelin şu anda bekleyen bir işi var (CRM: ${job.crm_code}). Yine de listeden silmek istiyor musunuz?`
+      : `"${name}" adlı personeli listeden silmek istediğinize emin misiniz?`;
+    if (!confirm(msg)) return;
+
+    if (useSupabase) {
+      try {
+        const { error } = await supabase.from('personnel').delete().eq('name', name);
+        if (error) throw error;
+      } catch (e) {
+        showToast('Personel silinemedi: ' + e.message, true);
+        return;
+      }
+    }
+    personnelList = personnelList.filter(p => p !== name);
+    renderPersonnelPanel();
+    await savePersonnel();
+    showToast('Personel silindi: ' + name);
+  };
+
+  async function handleAddPersonnel() {
+    const val = $('inpNewPersonnel').value.trim();
+    if (!val) {
+      showToast('Personel adı boş olamaz.', true);
+      return;
+    }
+    if (personnelList.some(p => p.toLowerCase() === val.toLowerCase())) {
+      showToast('Bu personel zaten listede mevcut.', true);
+      return;
+    }
+    if (useSupabase) {
+      try {
+        const { error } = await supabase.from('personnel').insert({ name: val });
+        if (error) throw error;
+      } catch (e) {
+        showToast('Personel eklenemedi: ' + e.message, true);
+        return;
+      }
+    }
+    personnelList.push(val);
+    $('inpNewPersonnel').value = '';
+    renderPersonnelPanel();
+    await savePersonnel();
+    showToast('Personel eklendi: ' + val);
+  }
+
+  // --- STATS RENDERING ---
+  function renderStats() {
+    const totalProjects = projectsList.length;
+    const pendingProjects = projectsList.filter(p => (p.status || 'Bekliyor') === 'Bekliyor').length;
+    const completedProjects = totalProjects - pendingProjects;
+    const activePersonnel = personnelList.length;
+
+    $('statsCardsContainer').innerHTML = `
+      <div class="stat-card">
+        <h4>Toplam Proje</h4>
+        <div class="val">${totalProjects}</div>
+      </div>
+      <div class="stat-card">
+        <h4>Bekleyen</h4>
+        <div class="val" style="color:var(--secondary);">${pendingProjects}</div>
+      </div>
+      <div class="stat-card">
+        <h4>Tamamlanan</h4>
+        <div class="val" style="color:#2ecc71;">${completedProjects}</div>
+      </div>
+      <div class="stat-card">
+        <h4>Aktif Personel</h4>
+        <div class="val">${activePersonnel}</div>
+      </div>
+    `;
+
+    const monthlyData = {};
+    projectsList.forEach(p => {
+      if (!p.date) return;
+      const d = new Date(p.date);
+      if (isNaN(d.getTime())) return;
+      const month = d.toLocaleString('tr-TR', { month: 'long', year: 'numeric' });
+      monthlyData[month] = (monthlyData[month] || 0) + 1;
+    });
+
+    const sortedMonths = Object.keys(monthlyData).sort((a, b) => a.localeCompare(b));
+    const labels = sortedMonths;
+    const dataValues = sortedMonths.map(m => monthlyData[m]);
+
+    const canvas = document.getElementById('monthlyChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    if (monthlyChartInstance) {
+      monthlyChartInstance.destroy();
+    }
+
+    monthlyChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Aylık Eklenen Projeler',
+          data: dataValues,
+          backgroundColor: 'rgba(207, 46, 46, 0.8)',
+          borderColor: 'rgba(207, 46, 46, 1)',
+          borderWidth: 1,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { stepSize: 1 }
+          }
+        },
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+  }
+
+  // --- ADMIN & USERS MANAGEMENT ---
+  async function loadCrmStartCode() {
+    if (useSupabase) {
+      try {
+        const { data, error } = await supabase.from('projects').select('notes').eq('id', '__settings__');
+        if (error) throw error;
+        if (data && data[0] && data[0].notes) {
+          const parsed = typeof data[0].notes === 'string' ? JSON.parse(data[0].notes) : data[0].notes;
+          crmStartCode = parsed.crmStartCode || crmStartCode;
+        }
+      } catch (e) {
+        console.error("loadCrmStartCode error:", e);
+      }
+    } else {
+      try {
+        const val = await getStorageItem('mimari-crm-start-code');
+        if (val) crmStartCode = val;
+      } catch (e) {}
+    }
+    const inp = $('inpCrmStartCode');
+    if (inp) inp.value = crmStartCode;
+  }
+
+  async function saveSettings(codeVal) {
+    crmStartCode = codeVal.trim();
+    if (useSupabase) {
+      try {
+        const notesRaw = JSON.stringify({ crmStartCode: crmStartCode });
+        const { data } = await supabase.from('projects').select('id').eq('id', '__settings__');
+        if (data && data.length > 0) {
+          await supabase.from('projects').update({ notes: notesRaw }).eq('id', '__settings__');
+        } else {
+          await supabase.from('projects').insert({
+            id: '__settings__',
+            company: 'SYSTEM_CONFIG',
+            crm_code: '00-00000',
+            notes: notesRaw,
+            project_type: 'Config',
+            status: 'System',
+            date: new Date().toISOString().slice(0,10)
+          });
+        }
+      } catch (e) {
+        console.error("saveSettings Supabase error:", e);
+      }
+    } else {
+      await setStorageItem('mimari-crm-start-code', crmStartCode);
+    }
+  }
+
+  async function handleSaveSettings() {
+    const val = $('inpCrmStartCode').value.trim();
+    if (!/^\d{2}-\d{5}$/.test(val)) {
+      showToast('Lütfen geçerli bir CRM kodu girin (Format: YY-00000).', true);
+      return;
+    }
+    await saveSettings(val);
+    showToast('Ayarlar başarıyla kaydedildi: ' + val);
+  }
+
+  async function loadUsers() {
+    if (useSupabase) {
+      try {
+        const { data, error } = await supabase.from('users').select('*');
+        if (error) throw error;
+        users = (data || []).map(u => ({
+          username: u.username,
+          password: u.password,
+          role: u.role,
+          personnelName: u.personnel_name || u.username
+        }));
+      } catch (e) {
+        console.error("loadUsers error:", e);
+      }
+    } else {
+      try {
+        const val = await getStorageItem(STORAGE_KEY_USERS);
+        users = val ? JSON.parse(val) : [];
+      } catch (e) {}
+    }
+    renderUsersPanel();
+  }
+
+  async function saveUsers() {
+    if (useSupabase) return true;
+    try {
+      return await setStorageItem(STORAGE_KEY_USERS, JSON.stringify(users));
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  }
+
+  function renderUsersPanel() {
+    const list = $('usersList');
+    if (!list) return;
+    if (users.length === 0) {
+      list.innerHTML = `<div class="empty-state">Kullanıcı bulunamadı.</div>`;
+      return;
+    }
+    list.innerHTML = users.map(u => {
+      const canDelete = users.filter(x => x.role === 'admin' || x.role === 'YÖNETİM').length > 1 || (u.role !== 'admin' && u.role !== 'YÖNETİM');
+      const isSelf = currentUser && currentUser.username === u.username;
+
+      const delBtn = (canDelete && !isSelf)
+        ? `<button class="personnel-del" onclick="deleteUser('${esc(u.username)}')" title="Kullanıcıyı Sil">✕</button>`
+        : `<span style="font-size:11px;color:var(--ink-soft);">${isSelf ? '(Siz)' : ''}</span>`;
+
+      return `<div class="personnel-item">
+        <span class="personnel-name">${esc(u.username)} <span style="font-size:12px; font-weight:normal; color:var(--ink-soft);">(${(u.role === 'admin' || u.role === 'YÖNETİM') ? 'Yönetici' : u.role})</span> — <span style="font-size:12px; font-weight:bold; color:var(--accent-dark);">Personel: ${esc(u.personnelName || u.username)}</span></span>
+        <span style="font-family:'JetBrains Mono',monospace; font-size:12px; margin-right:15px; color:var(--ink-soft);">Şifre: ${esc(u.password)}</span>
+        ${delBtn}
+      </div>`;
+    }).join('');
+  }
+
+  async function addAdminUser() {
+    const uName = $('inpAdminNewUser').value.trim();
+    const uPass = $('inpAdminNewPass').value.trim();
+    const pName = $('inpAdminNewPersonnelName').value.trim();
+    const uRole = $('selAdminNewRole').value;
+
+    let err = false;
+    if (!uName) { $('cell-admin-user').classList.add('invalid'); err = true; } else { $('cell-admin-user').classList.remove('invalid'); }
+    if (!uPass) { $('cell-admin-pass').classList.add('invalid'); err = true; } else { $('cell-admin-pass').classList.remove('invalid'); }
+    if (!pName) { $('cell-admin-personnel-name').classList.add('invalid'); err = true; } else { $('cell-admin-personnel-name').classList.remove('invalid'); }
+    if (err) return;
+
+    if (users.some(x => x.username.toLowerCase() === uName.toLowerCase())) {
+      showToast('Bu kullanıcı adı zaten mevcut.', true);
+      $('cell-admin-user').classList.add('invalid');
+      return;
+    }
+
+    if (useSupabase) {
+      try {
+        const { error } = await supabase.from('users').insert({
+          username: uName,
+          password: uPass,
+          role: uRole,
+          personnel_name: pName
+        });
+        if (error) throw error;
+      } catch (e) {
+        showToast('Kullanıcı eklenemedi: ' + e.message, true);
+        return;
+      }
+    }
+
+    users.push({ username: uName, password: uPass, role: uRole, personnelName: pName });
+
+    if (useSupabase) {
+      try {
+        if (!personnelList.some(p => p.toLowerCase() === pName.toLowerCase())) {
+          const { error: pErr } = await supabase.from('personnel').insert({ name: pName });
+          if (pErr) console.error(pErr);
+        }
+      } catch (e) {}
+    }
+
+    if (!personnelList.some(p => p.toLowerCase() === pName.toLowerCase())) {
+      personnelList.push(pName);
+      await savePersonnel();
+    }
+
+    $('inpAdminNewUser').value = '';
+    $('inpAdminNewPass').value = '';
+    $('inpAdminNewPersonnelName').value = '';
+    renderUsersPanel();
+    renderPersonnelPanel();
+    await saveUsers();
+    showToast('Kullanıcı başarıyla oluşturuldu: ' + uName);
+  }
+
+  window.deleteUser = async function(username) {
+    if (currentUser && currentUser.username === username) {
+      showToast('Kendinizi silemezsiniz.', true);
+      return;
+    }
+    if (!confirm(`"${username}" kullanıcısını silmek istediğinize emin misiniz?`)) return;
+
+    if (useSupabase) {
+      try {
+        const { error } = await supabase.from('users').delete().eq('username', username);
+        if (error) throw error;
+      } catch (e) {
+        showToast('Kullanıcı silinemedi: ' + e.message, true);
+        return;
+      }
+    }
+
+    users = users.filter(x => x.username !== username);
+    renderUsersPanel();
+    await saveUsers();
+    showToast('Kullanıcı silindi: ' + username);
+  };
+
   // --- Tab switching ---
   function switchYonetimTab(tabName) {
     currentYonetimTab = tabName;
@@ -428,12 +806,22 @@
     });
     $('panel-projects-pending').classList.toggle('hidden', tabName !== 'projects-pending');
     $('panel-purchase-pending').classList.toggle('hidden', tabName !== 'purchase-pending');
+    $('panel-personnel').classList.toggle('hidden', tabName !== 'personnel');
+    $('panel-stats').classList.toggle('hidden', tabName !== 'stats');
+    $('panel-admin').classList.toggle('hidden', tabName !== 'admin');
+    
+    if (tabName === 'stats') {
+      renderStats();
+    }
   }
 
   // --- Navigation & Bindings ---
   $('btnYonetimLogout').addEventListener('click', handleLogout);
   $('btnGoToBoard').addEventListener('click', () => { window.location.href = 'index.html'; });
   $('btnGoToAccounting').addEventListener('click', () => { window.location.href = 'muhasebe.html'; });
+  if ($('btnAddPersonnel')) $('btnAddPersonnel').addEventListener('click', handleAddPersonnel);
+  if ($('btnAdminSaveSettings')) $('btnAdminSaveSettings').addEventListener('click', handleSaveSettings);
+  if ($('btnAdminAddUser')) $('btnAdminAddUser').addEventListener('click', addAdminUser);
 
   document.querySelectorAll('[data-yonetim-tab]').forEach(tab => {
     tab.addEventListener('click', () => {

@@ -350,10 +350,12 @@
     $('appContainer').classList.remove('hidden');
     $('lblCurrentUser').textContent = `${currentUser.username} (${(currentUser.role === 'admin' || currentUser.role === 'YÖNETİM') ? 'Yönetici' : currentUser.role})`;
 
-    if (currentUser.role === 'admin' || currentUser.role === 'YÖNETİM') {
-      $('tab-admin').classList.remove('hidden');
-    } else {
-      $('tab-admin').classList.add('hidden');
+    if ($('tab-admin')) {
+      if (currentUser.role === 'admin' || currentUser.role === 'YÖNETİM') {
+        $('tab-admin').classList.remove('hidden');
+      } else {
+        $('tab-admin').classList.add('hidden');
+      }
     }
 
     if (isManager) {
