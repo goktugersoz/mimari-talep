@@ -41,6 +41,7 @@
     <div class="tabs">
       <div class="tab active" data-yonetim-tab="projects-pending">PROJE GÜNCELLEME ONAYLARI (MUHASEBE)</div>
       <div class="tab" data-yonetim-tab="purchase-pending">SATIN ALMA ONAYLARI (DİĞER BİRİMLER)</div>
+      <div class="tab" data-yonetim-tab="fabrika-management">FABRİKA YÖNETİMİ</div>
       <div class="tab" data-yonetim-tab="stats">İSTATİSTİKLER</div>
       <div class="tab" data-yonetim-tab="admin">ADMİN PANELİ</div>
     </div>
@@ -165,6 +166,49 @@
       <h4 style="font-family:'Space Grotesk',sans-serif; margin: 20px 0 10px 0;">Mevcut Kullanıcılar</h4>
       <div id="usersList"></div>
     </div>
+
+    <!-- 6. FABRIKA MANAGEMENT PANEL -->
+    <div class="panel hidden" id="panel-fabrika-management">
+      <!-- EXCEL UPLOAD FORM -->
+      <div class="titleblock" style="max-width: 100%; margin-bottom: 25px;">
+        <div class="tb-top"><span>FABRİKAYA YENİ EXCEL SİPARİŞ LİSTESİ GÖNDER</span></div>
+        <div class="tb-grid" style="grid-template-columns: 1fr 1fr;">
+          <div class="cell">
+            <label>Sipariş Başlığı / Açıklama</label>
+            <input type="text" id="inpFabrikaOrderTitle" placeholder="örn. Aksa Çelik Fabrika Kesim Siparişi - Ağustos 2026">
+          </div>
+          <div class="cell">
+            <label>Excel Dosyası (.xls, .xlsx, .csv - Maks 50MB)</label>
+            <input id="inpFabrikaExcelFile" type="file" style="font-size:13px; width:100%;">
+          </div>
+        </div>
+        <div class="tb-actions" style="justify-content: flex-end; padding-top: 10px;">
+          <button class="btn-submit" id="btnSendExcelToFabrika" style="width: auto;">Excel Siparişini Gönder</button>
+        </div>
+      </div>
+
+      <!-- LIST OF SENT ORDERS -->
+      <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px; border-bottom: 2px solid var(--line); padding-bottom: 8px;">Gönderilen Siparişler & Fabrika Onay Durumları</h3>
+      <div class="table-responsive" style="overflow-x:auto;">
+        <table class="drafts-table" style="width: 100%; border-collapse: collapse; min-width: 900px;">
+          <thead>
+            <tr style="background: var(--paper); border-bottom: 2px solid var(--line); text-align: left;">
+              <th style="padding: 12px 10px;">Tarih</th>
+              <th style="padding: 12px 10px;">Başlık</th>
+              <th style="padding: 12px 10px;">Excel</th>
+              <th style="padding: 12px 10px;">Fabrika Notu</th>
+              <th style="padding: 12px 10px;">Yüklenen Fotoğraf</th>
+              <th style="padding: 12px 10px;">Durum</th>
+              <th style="padding: 12px 10px; text-align: center; width: 220px;">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody id="tblYonetimFabrikaOrdersBody">
+            <!-- JS populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
   </div>
 
   <div class="toast" id="toast"></div>

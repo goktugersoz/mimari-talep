@@ -348,6 +348,12 @@
       return;
     }
 
+    const isFabrika = currentUser && currentUser.role === 'FABRİKA';
+    if (isFabrika) {
+      window.location.href = 'fabrika.html';
+      return;
+    }
+
     const isManager = currentUser && (currentUser.role === 'admin' || currentUser.role === 'YÖNETİM' || currentUser.role === 'YÖNETİCİ');
     if (isManager && isLoginTriggered) {
       window.location.href = 'yonetim.html';

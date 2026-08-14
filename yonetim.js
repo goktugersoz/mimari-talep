@@ -26,6 +26,8 @@
   let users = [];
   let crmStartCode = '26-00370';
   let monthlyChartInstance = null;
+  let fabrikaOrders = [];
+  const STORAGE_KEY_FABRIKA = 'mimari-fabrika-talepleri';
 
   const $ = (id) => document.getElementById(id);
   const toast = $('toast');
@@ -102,6 +104,7 @@
     await loadPersonnel();
     await loadUsers();
     await loadCrmStartCode();
+    await loadFabrikaOrders();
     
     parseProjectsExtra();
     renderAll();
@@ -249,6 +252,7 @@
     renderPurchaseApprovals();
     renderPersonnelPanel();
     renderUsersPanel();
+    renderFabrikaOrders();
   }
 
   function renderProjectsApprovals() {
@@ -798,6 +802,224 @@
     showToast('Kullanıcı silindi: ' + username);
   };
 
+  // --- FABRIKA ORDERS MANAGEMENT ---
+  async function loadFabrikaOrders() {
+    if (useSupabase) {
+      try {
+        const { data, error } = await supabase.from('fabrika_orders').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        fabrikaOrders = data || [];
+      } catch(e) {
+        console.error("loadFabrikaOrders error:", e);
+        await loadFabrikaOrdersFromLocalStorage();
+      }
+    } else {
+      await loadFabrikaOrdersFromLocalStorage();
+    }
+    renderFabrikaOrders();
+  }
+
+  async function loadFabrikaOrdersFromLocalStorage() {
+    try {
+      const val = await getStorageItem(STORAGE_KEY_FABRIKA);
+      fabrikaOrders = val ? JSON.parse(val) : [];
+    } catch(e) { fabrikaOrders = []; }
+  }
+
+  async function saveFabrikaOrdersToLocalStorage() {
+    await setStorageItem(STORAGE_KEY_FABRIKA, JSON.stringify(fabrikaOrders));
+  }
+
+  function renderFabrikaOrders() {
+    const tbody = $('tblYonetimFabrikaOrdersBody');
+    if (!tbody) return;
+
+    if (fabrikaOrders.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--ink-soft);">Henüz gönderilmiş bir fabrika siparişi bulunmamaktadır.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = fabrikaOrders.map(o => {
+      let excelLink = o.excel_url
+        ? `<a href="${esc(o.excel_url)}" target="_blank" class="text-blue-600 hover:underline font-bold">📎 ${esc(o.excel_name || 'Excel İndir')}</a>`
+        : '—';
+
+      let photoDisplay = '—';
+      if (o.photo_url) {
+        photoDisplay = `<a href="${esc(o.photo_url)}" target="_blank"><img src="${esc(o.photo_url)}" style="max-height:45px; max-width:70px; object-fit:cover; border-radius:4px; border:1px solid var(--line);" title="Büyütmek için tıklayın"></a>`;
+      }
+
+      let statusBadge = '';
+      if (o.status === 'Bekliyor') {
+        statusBadge = `<span class="px-2 py-0.5 text-xs font-bold rounded bg-amber-100 text-amber-800">Fabrikada</span>`;
+      } else if (o.status === 'Onay Bekliyor') {
+        statusBadge = `<span class="px-2 py-0.5 text-xs font-bold rounded bg-blue-100 text-blue-800">Onay Bekliyor</span>`;
+      } else if (o.status === 'Onaylandı') {
+        statusBadge = `<span class="px-2 py-0.5 text-xs font-bold rounded bg-emerald-100 text-emerald-800">Onaylandı</span>`;
+      } else if (o.status === 'Reddedildi') {
+        statusBadge = `<span class="px-2 py-0.5 text-xs font-bold rounded bg-rose-100 text-rose-800">Reddedildi</span>`;
+      }
+
+      let actionsHtml = '—';
+      if (o.status === 'Onay Bekliyor') {
+        actionsHtml = `
+          <div style="display:flex; gap:6px; justify-content:center;">
+            <button class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-1.5 rounded font-bold" onclick="approveFabrikaOrder('${o.id}')">Onayla</button>
+            <button class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 py-1.5 rounded font-bold" onclick="rejectFabrikaOrder('${o.id}')">Reddet</button>
+          </div>
+        `;
+      }
+
+      return `<tr>
+        <td style="font-size:11px; color:var(--ink-soft);">${fmtDate(o.created_at)}</td>
+        <td><strong>${esc(o.title)}</strong></td>
+        <td>${excelLink}</td>
+        <td style="font-size:12px; max-width:200px; overflow:hidden; text-overflow:ellipsis;">${esc(o.notes || '—')}</td>
+        <td>${photoDisplay}</td>
+        <td>${statusBadge}</td>
+        <td style="text-align:center;">${actionsHtml}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function uploadFileToSupabase(fileObj) {
+    try {
+      const fileExt = fileObj.name.split('.').pop();
+      const cleanName = fileObj.name.replace(/[^a-zA-Z0-9]/g, '_');
+      const path = `fabrika/${Date.now()}_${cleanName}.${fileExt}`;
+      const { data, error } = await supabase.storage
+        .from('drawings')
+        .upload(path, fileObj, { cacheControl: '3600', upsert: true });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('drawings').getPublicUrl(path);
+      return urlData.publicUrl;
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
+  }
+
+  async function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleSendExcelToFabrika() {
+    const title = $('inpFabrikaOrderTitle').value.trim();
+    const fileInput = $('inpFabrikaExcelFile');
+
+    if (!title) {
+      showToast('Lütfen sipariş başlığı girin.', true);
+      return;
+    }
+    if (!fileInput.files || !fileInput.files[0]) {
+      showToast('Lütfen göndermek için bir Excel dosyası seçin.', true);
+      return;
+    }
+
+    const file = fileInput.files[0];
+    $('btnSendExcelToFabrika').disabled = true;
+    showToast('Dosya yükleniyor ve gönderiliyor...');
+
+    try {
+      let excelUrl = '';
+      if (useSupabase) {
+        excelUrl = await uploadFileToSupabase(file);
+      } else {
+        excelUrl = await fileToBase64(file);
+      }
+
+      const orderId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const createdAt = new Date().toISOString();
+
+      if (useSupabase) {
+        const { error } = await supabase.from('fabrika_orders').insert({
+          id: orderId,
+          title: title,
+          excel_url: excelUrl,
+          excel_name: file.name,
+          excel_size: file.size,
+          status: 'Bekliyor',
+          created_at: createdAt,
+          updated_at: createdAt
+        });
+        if (error) throw error;
+      } else {
+        fabrikaOrders.unshift({
+          id: orderId,
+          title: title,
+          excel_url: excelUrl,
+          excel_name: file.name,
+          excel_size: file.size,
+          status: 'Bekliyor',
+          created_at: createdAt,
+          updated_at: createdAt
+        });
+        await saveFabrikaOrdersToLocalStorage();
+      }
+
+      showToast('Sipariş başarıyla fabrikaya gönderildi.');
+      $('inpFabrikaOrderTitle').value = '';
+      $('inpFabrikaExcelFile').value = '';
+      await loadFabrikaOrders();
+    } catch(e) {
+      console.error(e);
+      showToast('Gönderim hatası: ' + e.message, true);
+    } finally {
+      $('btnSendExcelToFabrika').disabled = false;
+    }
+  }
+
+  window.approveFabrikaOrder = async function(id) {
+    try {
+      if (useSupabase) {
+        const { error } = await supabase.from('fabrika_orders').update({
+          status: 'Onaylandı',
+          updated_at: new Date().toISOString()
+        }).eq('id', id);
+        if (error) throw error;
+      } else {
+        const o = fabrikaOrders.find(x => x.id === id);
+        if (o) {
+          o.status = 'Onaylandı';
+          o.updated_at = new Date().toISOString();
+        }
+        await saveFabrikaOrdersToLocalStorage();
+      }
+      showToast('Fabrika siparişi onaylandı.');
+      await loadFabrikaOrders();
+    } catch(e) {
+      showToast('İşlem başarısız: ' + e.message, true);
+    }
+  };
+
+  window.rejectFabrikaOrder = async function(id) {
+    try {
+      if (useSupabase) {
+        const { error } = await supabase.from('fabrika_orders').update({
+          status: 'Reddedildi',
+          updated_at: new Date().toISOString()
+        }).eq('id', id);
+        if (error) throw error;
+      } else {
+        const o = fabrikaOrders.find(x => x.id === id);
+        if (o) {
+          o.status = 'Reddedildi';
+          o.updated_at = new Date().toISOString();
+        }
+        await saveFabrikaOrdersToLocalStorage();
+      }
+      showToast('Fabrika siparişi reddedildi.');
+      await loadFabrikaOrders();
+    } catch(e) {
+      showToast('İşlem başarısız: ' + e.message, true);
+    }
+  };
+
   // --- Tab switching ---
   function switchYonetimTab(tabName) {
     currentYonetimTab = tabName;
@@ -806,12 +1028,16 @@
     });
     if ($('panel-projects-pending')) $('panel-projects-pending').classList.toggle('hidden', tabName !== 'projects-pending');
     if ($('panel-purchase-pending')) $('panel-purchase-pending').classList.toggle('hidden', tabName !== 'purchase-pending');
+    if ($('panel-fabrika-management')) $('panel-fabrika-management').classList.toggle('hidden', tabName !== 'fabrika-management');
     if ($('panel-personnel')) $('panel-personnel').classList.toggle('hidden', tabName !== 'personnel');
     if ($('panel-stats')) $('panel-stats').classList.toggle('hidden', tabName !== 'stats');
     if ($('panel-admin')) $('panel-admin').classList.toggle('hidden', tabName !== 'admin');
     
     if (tabName === 'stats') {
       renderStats();
+    }
+    if (tabName === 'fabrika-management') {
+      renderFabrikaOrders();
     }
   }
 
@@ -822,6 +1048,7 @@
   if ($('btnAddPersonnel')) $('btnAddPersonnel').addEventListener('click', handleAddPersonnel);
   if ($('btnAdminSaveSettings')) $('btnAdminSaveSettings').addEventListener('click', handleSaveSettings);
   if ($('btnAdminAddUser')) $('btnAdminAddUser').addEventListener('click', addAdminUser);
+  if ($('btnSendExcelToFabrika')) $('btnSendExcelToFabrika').addEventListener('click', handleSendExcelToFabrika);
 
   document.querySelectorAll('[data-yonetim-tab]').forEach(tab => {
     tab.addEventListener('click', () => {
