@@ -1268,6 +1268,143 @@
   }
 }
 
+/* ---- MOBILE & RESPONSIVE DESIGN ---- */
+@media (max-width: 768px) {
+  body {
+    padding: 12px 10px 40px;
+  }
+  
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  header > div {
+    width: 100%;
+  }
+
+  header div[style*="display:flex"] {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+  
+  header button, header div {
+    width: 100%;
+    text-align: center;
+  }
+
+  .tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 5px;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+
+  .tab {
+    padding: 8px 12px;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .panel {
+    padding: 15px;
+    min-height: auto;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar input {
+    width: 100%;
+  }
+
+  .toolbar button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* List view responsiveness */
+  .grid.list-view {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .grid.list-view .card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .grid.list-view .card-head {
+    flex: none;
+    width: 100%;
+    height: auto;
+    border-radius: 8px 8px 0 0;
+    padding: 12px;
+  }
+
+  .grid.list-view .card-body {
+    flex-direction: column;
+    padding: 15px;
+  }
+
+  .grid.list-view .card-main-info {
+    width: 100%;
+    margin-bottom: 12px;
+  }
+
+  .grid.list-view .card-files-info {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+    padding-left: 0;
+  }
+
+  /* Form & Titleblock Grid layouts */
+  .tb-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .cell.full, .cell {
+    grid-column: span 1 !important;
+  }
+
+  .tb-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .tb-actions button {
+    width: 100% !important;
+  }
+
+  /* Table responsiveness */
+  .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Login container centering */
+  .titleblock[style*="margin: 100px auto"] {
+    margin: 40px auto !important;
+    max-width: 100% !important;
+  }
+}
+
 
 
 
