@@ -835,49 +835,17 @@
     if (!tbody) return;
 
     if (fabrikaOrders.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--ink-soft);">Henüz gönderilmiş bir fabrika siparişi bulunmamaktadır.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:30px; color:var(--ink-soft);">Henüz gönderilmiş bir fabrika siparişi bulunmamaktadır.</td></tr>`;
       return;
     }
 
     tbody.innerHTML = fabrikaOrders.map(o => {
-      let excelLink = o.excel_url
-        ? `<a href="${esc(o.excel_url)}" target="_blank" class="text-blue-600 hover:underline font-bold" style="display:flex; align-items:center; gap:4px;">📎 ${esc(o.excel_name || 'Excel İndir')}</a>`
-        : '';
-
-      let dwgLink = '';
-      let axdLink = '';
-      let cleanNotes = o.notes || '';
-      
-      if (o.notes) {
-        const dwgRegex = /AutoCAD DWG:\s*([^\(]+)\s*\((https?:\/\/[^\)]+)\)/i;
-        const dwgMatch = o.notes.match(dwgRegex);
-        if (dwgMatch) {
-          dwgLink = `<a href="${esc(dwgMatch[2])}" target="_blank" class="text-red-600 hover:underline font-bold" style="display:flex; align-items:center; gap:4px; margin-top:4px;">📐 ${esc(dwgMatch[1].trim())}</a>`;
-          cleanNotes = cleanNotes.replace(dwgMatch[0], '');
-        }
-
-        const axdRegex = /AXD Dosyası:\s*([^\(]+)\s*\((https?:\/\/[^\)]+)\)/i;
-        const axdMatch = o.notes.match(axdRegex);
-        if (axdMatch) {
-          axdLink = `<a href="${esc(axdMatch[2])}" target="_blank" class="text-orange-600 hover:underline font-bold" style="display:flex; align-items:center; gap:4px; margin-top:4px;">📄 ${esc(axdMatch[1].trim())}</a>`;
-          cleanNotes = cleanNotes.replace(axdMatch[0], '');
-        }
-      }
-
-      let filesHtml = [excelLink, dwgLink, axdLink].filter(Boolean).join('');
-      if (!filesHtml) filesHtml = '—';
-
       const crmMatch = o.title ? o.title.match(/\((\d{2}-\d{5})\)/) : null;
       let displayTitle = o.title || '';
       let crmBadge = '';
       if (crmMatch) {
-        crmBadge = `<span class="px-2 py-0.5 text-xs font-bold rounded bg-slate-200 text-slate-800" style="font-family:monospace; margin-right:6px;">${crmMatch[1]}</span>`;
+        crmBadge = `<span class="px-2 py-1 text-xs font-bold rounded bg-slate-200 text-slate-800" style="font-family:monospace; margin-right:8px;">${crmMatch[1]}</span>`;
         displayTitle = displayTitle.replace(crmMatch[0], '').trim();
-      }
-
-      let photoDisplay = '—';
-      if (o.photo_url) {
-        photoDisplay = `<a href="${esc(o.photo_url)}" target="_blank"><img src="${esc(o.photo_url)}" style="max-height:45px; max-width:70px; object-fit:cover; border-radius:4px; border:1px solid var(--line);" title="Büyütmek için tıklayın"></a>`;
       }
 
       let statusBadge = '';
@@ -891,24 +859,24 @@
         statusBadge = `<span class="px-2 py-0.5 text-xs font-bold rounded bg-rose-100 text-rose-800">Reddedildi</span>`;
       }
 
-      let actionsHtml = '—';
+      let actionButtons = `
+        <div style="display:flex; gap:6px; justify-content:center; align-items:center; flex-wrap:wrap;">
+          <button class="bg-gray-600 hover:bg-gray-700 text-white text-xs px-2.5 py-1.5 rounded font-bold" onclick="showFabrikaOrderDetail('${o.id}')">Detayları Görüntüle</button>
+      `;
+
       if (o.status === 'Onay Bekliyor') {
-        actionsHtml = `
-          <div style="display:flex; gap:6px; justify-content:center;">
-            <button class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-1.5 rounded font-bold" onclick="approveFabrikaOrder('${o.id}')">Onayla</button>
-            <button class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 py-1.5 rounded font-bold" onclick="rejectFabrikaOrder('${o.id}')">Reddet</button>
-          </div>
+        actionButtons += `
+          <button class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-1.5 rounded font-bold" onclick="approveFabrikaOrder('${o.id}')">Onayla</button>
+          <button class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-2.5 py-1.5 rounded font-bold" onclick="rejectFabrikaOrder('${o.id}')">Reddet</button>
         `;
       }
+      actionButtons += `</div>`;
 
       return `<tr>
         <td style="font-size:11px; color:var(--ink-soft);">${fmtDate(o.created_at)}</td>
         <td>${crmBadge}<strong>${esc(displayTitle)}</strong></td>
-        <td>${filesHtml}</td>
-        <td style="font-size:12px; max-width:200px; white-space:pre-wrap;">${esc(cleanNotes.trim() || '—')}</td>
-        <td>${photoDisplay}</td>
         <td>${statusBadge}</td>
-        <td style="text-align:center;">${actionsHtml}</td>
+        <td style="text-align:center;">${actionButtons}</td>
       </tr>`;
     }).join('');
   }
@@ -1051,6 +1019,149 @@
     }
   };
 
+  let activeDetailOrderId = null;
+
+  window.showFabrikaOrderDetail = function(id) {
+    const o = fabrikaOrders.find(x => x.id === id);
+    if (!o) return;
+    activeDetailOrderId = id;
+
+    const crmMatch = o.title ? o.title.match(/\((\d{2}-\d{5})\)/) : null;
+    $('lblDetailCrmCode').textContent = crmMatch ? crmMatch[1] : '—';
+    
+    let displayTitle = o.title || '';
+    if (crmMatch) {
+      displayTitle = displayTitle.replace(crmMatch[0], '').trim();
+    }
+    $('lblDetailTitle').textContent = displayTitle;
+    
+    let statusHtml = '';
+    if (o.status === 'Bekliyor') {
+      statusHtml = `<span class="px-2.5 py-1 text-xs font-bold rounded bg-amber-100 text-amber-800">Fabrikada</span>`;
+    } else if (o.status === 'Onay Bekliyor') {
+      statusHtml = `<span class="px-2.5 py-1 text-xs font-bold rounded bg-blue-100 text-blue-800">Onay Bekliyor</span>`;
+    } else if (o.status === 'Onaylandı') {
+      statusHtml = `<span class="px-2.5 py-1 text-xs font-bold rounded bg-emerald-100 text-emerald-800">Onaylandı</span>`;
+    } else if (o.status === 'Reddedildi') {
+      statusHtml = `<span class="px-2.5 py-1 text-xs font-bold rounded bg-rose-100 text-rose-800">Reddedildi</span>`;
+    }
+    $('lblDetailStatus').innerHTML = statusHtml;
+
+    $('lblDetailExcelName').textContent = o.excel_name || 'Excel Yüklenmemiş';
+    $('lblDetailExcelLink').innerHTML = o.excel_url 
+      ? `<a href="${esc(o.excel_url)}" target="_blank" class="text-blue-600 hover:underline font-bold">İndir</a>` 
+      : '—';
+
+    let dwgLink = '—';
+    let axdLink = '—';
+    let dwgName = 'Yüklenmemiş';
+    let axdName = 'Yüklenmemiş';
+    let cleanNotes = o.notes || '';
+
+    if (o.notes) {
+      const dwgRegex = /AutoCAD DWG:\s*([^\(]+)\s*\((https?:\/\/[^\)]+)\)/i;
+      const dwgMatch = o.notes.match(dwgRegex);
+      if (dwgMatch) {
+        dwgName = dwgMatch[1].trim();
+        dwgLink = `<a href="${esc(dwgMatch[2])}" target="_blank" class="text-red-600 hover:underline font-bold">İndir</a>`;
+        cleanNotes = cleanNotes.replace(dwgMatch[0], '');
+      }
+
+      const axdRegex = /AXD Dosyası:\s*([^\(]+)\s*\((https?:\/\/[^\)]+)\)/i;
+      const axdMatch = o.notes.match(axdRegex);
+      if (axdMatch) {
+        axdName = axdMatch[1].trim();
+        axdLink = `<a href="${esc(axdMatch[2])}" target="_blank" class="text-orange-600 hover:underline font-bold">İndir</a>`;
+        cleanNotes = cleanNotes.replace(axdMatch[0], '');
+      }
+    }
+    $('lblDetailDwgName').textContent = dwgName;
+    $('lblDetailDwgLink').innerHTML = dwgLink;
+    $('lblDetailAxdName').textContent = axdName;
+    $('lblDetailAxdLink').innerHTML = axdLink;
+
+    $('lblDetailNotes').textContent = cleanNotes.trim() || '—';
+
+    if (o.photo_url) {
+      $('divDetailPhotoSection').style.display = 'block';
+      $('lblDetailPhoto').innerHTML = `
+        <a href="${esc(o.photo_url)}" target="_blank">
+          <img src="${esc(o.photo_url)}" style="max-width:100%; max-height:200px; border-radius:6px; border:1px solid var(--line); object-fit:contain;">
+        </a>
+      `;
+    } else {
+      $('divDetailPhotoSection').style.display = 'none';
+    }
+
+    let actionButtonsHtml = '';
+    if (o.status === 'Onay Bekliyor') {
+      actionButtonsHtml = `
+        <button class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded text-sm" onclick="approveFabrikaOrder('${o.id}'); closeDetailModal();">Onayla</button>
+        <button class="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2 rounded text-sm" onclick="rejectFabrikaOrder('${o.id}'); closeDetailModal();">Reddet</button>
+      `;
+    }
+    $('divDetailActions').innerHTML = actionButtonsHtml;
+
+    $('fabrikaOrderDetailModal').style.display = 'flex';
+  };
+
+  window.closeDetailModal = function() {
+    $('fabrikaOrderDetailModal').style.display = 'none';
+    activeDetailOrderId = null;
+  };
+
+  async function handleDetailExcelChange() {
+    const fileInput = $('inpDetailExcelUpload');
+    if (!fileInput.files || !fileInput.files[0] || !activeDetailOrderId) return;
+    const file = fileInput.files[0];
+    
+    const triggerBtn = $('btnTriggerDetailExcelUpload');
+    triggerBtn.disabled = true;
+    triggerBtn.textContent = 'Yükleniyor...';
+    showToast('Yeni Excel listesi yükleniyor...');
+
+    try {
+      let excelUrl = '';
+      if (useSupabase) {
+        excelUrl = await uploadFileToSupabase(file);
+      } else {
+        excelUrl = await fileToBase64(file);
+      }
+
+      if (useSupabase) {
+        const { error } = await supabase.from('fabrika_orders').update({
+          excel_url: excelUrl,
+          excel_name: file.name,
+          excel_size: file.size,
+          updated_at: new Date().toISOString()
+        }).eq('id', activeDetailOrderId);
+        if (error) throw error;
+      } else {
+        const o = fabrikaOrders.find(x => x.id === activeDetailOrderId);
+        if (o) {
+          o.excel_url = excelUrl;
+          o.excel_name = file.name;
+          o.excel_size = file.size;
+          o.updated_at = new Date().toISOString();
+        }
+        await saveFabrikaOrdersToLocalStorage();
+      }
+
+      showToast('Excel listesi başarıyla güncellendi.');
+      await loadFabrikaOrders();
+      if (activeDetailOrderId) {
+        showFabrikaOrderDetail(activeDetailOrderId);
+      }
+    } catch(e) {
+      console.error(e);
+      showToast('Güncelleme hatası: ' + e.message, true);
+    } finally {
+      triggerBtn.disabled = false;
+      triggerBtn.textContent = 'Yükle / Değiştir';
+      fileInput.value = '';
+    }
+  }
+
   // --- Tab switching ---
   function switchYonetimTab(tabName) {
     currentYonetimTab = tabName;
@@ -1080,6 +1191,9 @@
   if ($('btnAdminSaveSettings')) $('btnAdminSaveSettings').addEventListener('click', handleSaveSettings);
   if ($('btnAdminAddUser')) $('btnAdminAddUser').addEventListener('click', addAdminUser);
   if ($('btnSendExcelToFabrika')) $('btnSendExcelToFabrika').addEventListener('click', handleSendExcelToFabrika);
+  if ($('btnCancelDetailModal')) $('btnCancelDetailModal').addEventListener('click', closeDetailModal);
+  if ($('btnTriggerDetailExcelUpload')) $('btnTriggerDetailExcelUpload').addEventListener('click', () => $('inpDetailExcelUpload').click());
+  if ($('inpDetailExcelUpload')) $('inpDetailExcelUpload').addEventListener('change', handleDetailExcelChange);
 
   document.querySelectorAll('[data-yonetim-tab]').forEach(tab => {
     tab.addEventListener('click', () => {
