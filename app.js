@@ -25,6 +25,7 @@
   let editingProjectId = null;
   let attachedFiles = { dwg: null, excel: null, axd: null };
   let currentView = 'grid';
+  let onlyPersonnelEdit = false;
   let crmStartCode = String(new Date().getFullYear()).slice(-2) + '-00001';
   let drafts = [];
   let attachedDraftFile = null;
@@ -1293,7 +1294,7 @@
       ? `<button class="status-badge ${statusClass}" data-toggle="${p.id}" title="Durumu değiştir">${esc(status)}</button>`
       : `<span class="status-badge ${statusClass}" style="cursor: default; opacity: 0.85;">${esc(status)}</span>`;
 
-    const cardClass = allowed ? 'card' : 'card readonly-card';
+    const cardClass = 'card';
 
     return `
       <div class="${cardClass}" data-card="${p.id}">
@@ -1382,11 +1383,39 @@
   function startEditProject(id) {
     const p = projects.find(pr => pr.id === id);
     if (!p) return;
-    if (!canManageProject(p)) {
-      showToast('Bu talebi düzenleme yetkiniz yok (sadece size atanan işleri düzenleyebilirsiniz).', true);
-      return;
-    }
+    
     editingProjectId = id;
+    const allowed = canManageProject(p);
+    onlyPersonnelEdit = !allowed;
+
+    if (onlyPersonnelEdit) {
+      showToast('Sadece atanmış personeli değiştirme yetkiniz vardır.', false);
+      $('selCompany').disabled = true;
+      $('inpCrm').disabled = true;
+      $('inpBuildingCode').disabled = true;
+      $('inpAreaM2').disabled = true;
+      $('inpCustomerName').disabled = true;
+      $('selType').disabled = true;
+      $('inpDate').disabled = true;
+      $('inpNotes').disabled = true;
+      $('inpFileDwg').disabled = true;
+      $('inpFileExcel').disabled = true;
+      $('inpFileAxd').disabled = true;
+      $('btnSubmit').textContent = 'Sadece Personeli Güncelle';
+    } else {
+      $('selCompany').disabled = false;
+      $('inpCrm').disabled = false;
+      $('inpBuildingCode').disabled = false;
+      $('inpAreaM2').disabled = false;
+      $('inpCustomerName').disabled = false;
+      $('selType').disabled = false;
+      $('inpDate').disabled = false;
+      $('inpNotes').disabled = false;
+      $('inpFileDwg').disabled = false;
+      $('inpFileExcel').disabled = false;
+      $('inpFileAxd').disabled = false;
+      $('btnSubmit').textContent = 'Değişiklikleri Kaydet';
+    }
 
     // Fill company
     const baseCompany = p.company.replace('AKSA ÇELİK AŞ - ', '');
@@ -1424,7 +1453,11 @@
           data: p['file' + uType + 'Data']
         };
         $('fileStatus' + uType).textContent = `Yüklü: ${p['file' + uType + 'Name']} (${formatBytes(p['file' + uType + 'Size'])})`;
-        $('btnRemoveFile' + uType).classList.remove('hidden');
+        if (onlyPersonnelEdit) {
+          $('btnRemoveFile' + uType).classList.add('hidden');
+        } else {
+          $('btnRemoveFile' + uType).classList.remove('hidden');
+        }
       } else if (p.fileName && p.fileData && type === 'dwg') {
         // Backwards compatibility
         attachedFiles.dwg = { name: p.fileName, size: p.fileSize, data: p.fileData };
@@ -1562,6 +1595,51 @@
   }
 
   async function submitForm() {
+    if (onlyPersonnelEdit && editingProjectId) {
+      $('btnSubmit').disabled = true;
+      const p = projects.find(pr => pr.id === editingProjectId);
+      if (p) {
+        const employee = $('selEmployee').value.trim();
+        const updatedAt = new Date().toISOString();
+        const notesRaw = serializeNotesField(p.customerName || '', p.notes || '', p.createdAt, updatedAt);
+        
+        let ok = false;
+        try {
+          if (useSupabase) {
+            const { error } = await supabase.from('projects').update({
+              employee,
+              notes: notesRaw
+            }).eq('id', editingProjectId);
+            if (error) throw error;
+          }
+          p.employee = employee;
+          p.updatedAt = updatedAt;
+          
+          ok = useSupabase ? true : await saveProjects();
+        } catch (err) {
+          console.error("submitForm personnel edit error:", err);
+          showToast("İşlem başarısız: " + err.message, true);
+          ok = false;
+        }
+        
+        if (ok) {
+          showToast("Personel başarıyla güncellendi.");
+          renderGrid();
+          renderPersonnelPanel();
+          checkEmployeeWarning();
+          
+          if (currentUser.role === 'PROJE') {
+            switchTab('drafts');
+          } else {
+            switchTab('board');
+          }
+          editingProjectId = null;
+        }
+      }
+      $('btnSubmit').disabled = false;
+      return;
+    }
+
     if (!editingProjectId) {
       $('inpCrm').value = suggestNextCrm();
     }
@@ -1773,6 +1851,18 @@
 
   function resetForm() {
     editingProjectId = null;
+    onlyPersonnelEdit = false;
+    $('selCompany').disabled = false;
+    $('inpCrm').disabled = false;
+    $('inpBuildingCode').disabled = false;
+    $('inpAreaM2').disabled = false;
+    $('inpCustomerName').disabled = false;
+    $('selType').disabled = false;
+    $('inpDate').disabled = false;
+    $('inpNotes').disabled = false;
+    $('inpFileDwg').disabled = false;
+    $('inpFileExcel').disabled = false;
+    $('inpFileAxd').disabled = false;
     attachedFiles = { dwg: null, excel: null, axd: null };
     ['Dwg', 'Excel', 'Axd'].forEach(type => {
       $('inpFile' + type).value = '';
