@@ -183,7 +183,7 @@
 
       let statusBadge = '';
       if (o.status === 'Bekliyor') {
-        statusBadge = `<span class="px-2.5 py-1 text-xs font-bold rounded bg-amber-100 text-amber-800">Excel Gönderildi</span>`;
+        statusBadge = `<span class="px-2.5 py-1 text-xs font-bold rounded bg-amber-100 text-amber-800">Bekliyor</span>`;
       } else if (o.status === 'Onay Bekliyor') {
         statusBadge = `<span class="px-2.5 py-1 text-xs font-bold rounded bg-blue-100 text-blue-800">Onay Bekliyor</span>`;
       } else if (o.status === 'Onaylandı') {
