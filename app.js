@@ -1500,6 +1500,7 @@
 
     switchTab('form');
   }
+  window.startEditProject = startEditProject;
 
   function cancelEdit() {
     resetForm();
@@ -2339,7 +2340,10 @@
                   ${badgesHtml.join('')}
                 </td>
                 <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
-                  <button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent-dark);" onclick="sendDraftToForm('${d.id}')" title="Yeni Talep Formuna Git">Talebi Oluştur 📝</button>
+                  ${linkedProject ?
+                    `<button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:#3498db;" onclick="startEditProject('${linkedProject.id}')" title="Taslağı Düzenle">Taslağı Düzenle 📝</button>` :
+                    `<button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent-dark);" onclick="sendDraftToForm('${d.id}')" title="Yeni Talep Formuna Git">Taslağı Düzenle 📝</button>`
+                  }
                   <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
                 </td>
               </tr>`;
