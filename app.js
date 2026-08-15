@@ -1407,7 +1407,7 @@
       </div>`;
   }
 
-  function startEditProject(id) {
+  function startEditProject(id, draftId = null) {
     const p = projects.find(pr => pr.id === id);
     if (!p) return;
     
@@ -1470,9 +1470,42 @@
     $('inpDate').value = p.date || todayISO();
     $('inpNotes').value = p.notes || '';
 
+    const draftObj = draftId ? drafts.find(x => x.id === draftId) : null;
+    if (draftObj) {
+      updateDraftStatus(draftId, 'status', 'bekleyen');
+      activeDraftIdForNewProject = draftId;
+      
+      const tales = [];
+      if (draftObj.crmRequested) tales.push('CRM');
+      if (draftObj.takimRequested) tales.push('TAKIM');
+      if (draftObj.sayimRequested) tales.push('SAYIM');
+      
+      let currentNotes = p.notes || '';
+      if (!currentNotes.includes(`[DraftID: ${draftObj.id}]`)) {
+        $('inpNotes').value = `[Taslaktan Talebe Gönderildi. Talepler: ${tales.join(', ')}] [DraftID: ${draftObj.id}]\n` + currentNotes;
+      }
+    }
+
     // Handle attached files
     ['dwg', 'excel', 'axd'].forEach(type => {
       const uType = type.charAt(0).toUpperCase() + type.slice(1);
+      
+      if (type === 'dwg' && draftObj) {
+        attachedFiles.dwg = {
+          name: draftObj.fileName,
+          size: draftObj.fileSize,
+          data: draftObj.fileUrl,
+          fileRaw: null
+        };
+        $('fileStatusDwg').textContent = `Hazır (Taslak): ${draftObj.fileName} (${formatBytes(draftObj.fileSize)})`;
+        if (onlyPersonnelEdit) {
+          $('btnRemoveFileDwg').classList.add('hidden');
+        } else {
+          $('btnRemoveFileDwg').classList.remove('hidden');
+        }
+        return;
+      }
+
       if (p['file' + uType + 'Name'] && p['file' + uType + 'Data']) {
         attachedFiles[type] = {
           name: p['file' + uType + 'Name'],
@@ -2221,6 +2254,27 @@
     if (d.crmRequested) tales.push('CRM');
     if (d.takimRequested) tales.push('TAKIM');
     if (d.sayimRequested) tales.push('SAYIM');
+
+    // Try to find a matching project on the board to copy details from
+    const extractCrmCode = (filename) => {
+      if (!filename) return null;
+      const match = /(\d{2}-\d{5})/.exec(filename);
+      return match ? match[0] : null;
+    };
+    const draftCrm = extractCrmCode(d.fileName);
+    const matchingProj = projects.find(p => {
+      if (p.notes && p.notes.includes(`[DraftID: ${d.id}]`)) return true;
+      if (p.fileDwgData === d.fileUrl || p.fileDwgName === d.fileName) return true;
+      return draftCrm && p.crmCode && p.crmCode.trim() === draftCrm;
+    });
+
+    if (matchingProj) {
+      // Found matching project, open it in edit mode with draft details
+      startEditProject(matchingProj.id, d.id);
+      showToast("Taslak bilgileri panodaki mevcut projeden alındı.");
+      return;
+    }
+
     $('inpNotes').value = `[Taslaktan Talebe Gönderildi. Talepler: ${tales.join(', ')}] [DraftID: ${d.id}]`;
 
     switchTab('form');
@@ -2248,6 +2302,13 @@
 
     const activeDrafts = drafts.filter(d => (d.status || 'mevcut') === 'mevcut' || d.status === 'bekleyen');
     const completed = drafts.filter(d => d.status === 'tamamlanan');
+
+    // Helper for CRM extraction
+    const extractCrmCode = (filename) => {
+      if (!filename) return null;
+      const match = /(\d{2}-\d{5})/.exec(filename);
+      return match ? match[0] : null;
+    };
 
     // Render Pending (now includes newly uploaded/mevcut drafts)
     if (listPending) {
@@ -2288,10 +2349,12 @@
                   </td>
                 </tr>`;
           } else {
-            // Find linked project by matching DraftID in notes, or fileUrl/fileName
+            // Find linked project by matching DraftID in notes, or fileUrl/fileName, or extracted CRM code
+            const draftCrm = extractCrmCode(d.fileName);
             const linkedProject = projects.find(p => {
               if (p.notes && p.notes.includes(`[DraftID: ${d.id}]`)) return true;
-              return p.fileDwgData === d.fileUrl || p.fileDwgName === d.fileName;
+              if (p.fileDwgData === d.fileUrl || p.fileDwgName === d.fileName) return true;
+              return draftCrm && p.crmCode && p.crmCode.trim() === draftCrm;
             });
 
             let crmOk = !d.crmRequested;
@@ -2344,7 +2407,7 @@
                   </td>
                   <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
                     ${linkedProject ?
-                      `<button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:#3498db;" onclick="startEditProject('${linkedProject.id}')" title="Taslağı Düzenle">Taslağı Düzenle 📝</button>` :
+                      `<button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:#3498db;" onclick="startEditProject('${linkedProject.id}', '${d.id}')" title="Taslağı Düzenle">Taslağı Düzenle 📝</button>` :
                       `<button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent-dark);" onclick="sendDraftToForm('${d.id}')" title="Yeni Talep Formuna Git">Taslağı Düzenle 📝</button>`
                     }
                     <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
