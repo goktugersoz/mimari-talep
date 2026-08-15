@@ -2364,24 +2364,21 @@
             const badgesHtml = [];
 
             if (d.crmRequested) {
-              const crmValid = !!linkedProject;
+              const crmValid = !!(linkedProject && linkedProject.fileDwgData && linkedProject.fileDwgData.trim() !== '');
               crmOk = crmValid;
               const color = crmValid ? '#2ecc71' : '#e74c3c';
               badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">CRM</span>`);
             }
 
             if (d.takimRequested) {
-              const takimValid = linkedProject &&
-                linkedProject.fileDwgData && linkedProject.fileDwgData.trim() !== '' &&
-                linkedProject.fileAxdData && linkedProject.fileAxdData.trim() !== '';
+              const takimValid = !!(linkedProject && linkedProject.fileAxdData && linkedProject.fileAxdData.trim() !== '');
               takimOk = takimValid;
               const color = takimValid ? '#2ecc71' : '#e74c3c';
               badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">TAKIM</span>`);
             }
 
             if (d.sayimRequested) {
-              const sayimValid = linkedProject &&
-                linkedProject.fileExcelData && linkedProject.fileExcelData.trim() !== '';
+              const sayimValid = !!(linkedProject && linkedProject.fileExcelData && linkedProject.fileExcelData.trim() !== '');
               sayimOk = sayimValid;
               const color = sayimValid ? '#2ecc71' : '#e74c3c';
               badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">SAYIM</span>`);
