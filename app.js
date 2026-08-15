@@ -2240,16 +2240,15 @@
     const listPending = $('draftsPendingTable');
     const listCompleted = $('draftsCompletedTable');
 
-    if (!listMevcut) return;
-
     const mevcut = drafts.filter(d => (d.status || 'mevcut') === 'mevcut');
     const pending = drafts.filter(d => d.status === 'bekleyen');
     const completed = drafts.filter(d => d.status === 'tamamlanan');
 
     // Render Mevcut
-    if (mevcut.length === 0) {
-      listMevcut.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--ink-soft); padding:30px;">Mevcut taslak bulunmamaktadır.</td></tr>`;
-    } else {
+    if (listMevcut) {
+      if (mevcut.length === 0) {
+        listMevcut.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--ink-soft); padding:30px;">Mevcut taslak bulunmamaktadır.</td></tr>`;
+      } else {
       listMevcut.innerHTML = mevcut.map(d => {
         const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—';
         const crmChecked = d.crmRequested ? 'checked' : '';
@@ -2273,6 +2272,7 @@
               </td>
             </tr>`;
       }).join('');
+      }
     }
 
     // Render Pending
