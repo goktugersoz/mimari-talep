@@ -2237,116 +2237,114 @@
   }
 
   function renderDrafts() {
-    const listMevcut = $('draftsListTable');
     const listPending = $('draftsPendingTable');
     const listCompleted = $('draftsCompletedTable');
 
-    const mevcut = drafts.filter(d => (d.status || 'mevcut') === 'mevcut');
-    const pending = drafts.filter(d => d.status === 'bekleyen');
+    const activeDrafts = drafts.filter(d => (d.status || 'mevcut') === 'mevcut' || d.status === 'bekleyen');
     const completed = drafts.filter(d => d.status === 'tamamlanan');
 
-    // Render Mevcut
-    if (listMevcut) {
-      if (mevcut.length === 0) {
-        listMevcut.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--ink-soft); padding:30px;">Mevcut taslak bulunmamaktadır.</td></tr>`;
-      } else {
-      listMevcut.innerHTML = mevcut.map(d => {
-        const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—';
-        const crmChecked = d.crmRequested ? 'checked' : '';
-        const takimChecked = d.takimRequested ? 'checked' : '';
-        const sayimChecked = d.sayimRequested ? 'checked' : '';
-
-        return `<tr>
-              <td>
-                <a href="${d.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(d.fileUrl)}', '${esc(d.fileName)}')">
-                  📁 ${esc(d.fileName)} (${formatBytes(d.fileSize)})
-                </a>
-              </td>
-              <td>${esc(d.uploadedBy)}</td>
-              <td>${dateStr}</td>
-              <td style="text-align:center;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="crmRequested" ${crmChecked}></td>
-              <td style="text-align:center;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="takimRequested" ${takimChecked}></td>
-              <td style="text-align:center;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="sayimRequested" ${sayimChecked}></td>
-              <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
-                <button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent);" onclick="sendDraftToForm('${d.id}')" title="Talebe Gönder">Talebe Gönder ➡️</button>
-                <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
-              </td>
-            </tr>`;
-      }).join('');
-      }
-    }
-
-    // Render Pending
+    // Render Pending (now includes newly uploaded/mevcut drafts)
     if (listPending) {
-      if (pending.length === 0) {
+      if (activeDrafts.length === 0) {
         listPending.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--ink-soft); padding:30px;">Bekleyen taslak bulunmamaktadır.</td></tr>`;
       } else {
         let needsRerender = false;
-        listPending.innerHTML = pending.map(d => {
+        listPending.innerHTML = activeDrafts.map(d => {
           const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—';
 
-          // Find linked project by matching DraftID in notes, or fileUrl/fileName
-          const linkedProject = projects.find(p => {
-            if (p.notes && p.notes.includes(`[DraftID: ${d.id}]`)) return true;
-            return p.fileDwgData === d.fileUrl || p.fileDwgName === d.fileName;
-          });
+          if ((d.status || 'mevcut') === 'mevcut') {
+            const crmChecked = d.crmRequested ? 'checked' : '';
+            const takimChecked = d.takimRequested ? 'checked' : '';
+            const sayimChecked = d.sayimRequested ? 'checked' : '';
 
-          let crmOk = !d.crmRequested;
-          let takimOk = !d.takimRequested;
-          let sayimOk = !d.sayimRequested;
+            const checkboxHtml = `
+              <div style="display:inline-flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap;">
+                <label style="display:inline-flex; align-items:center; gap:3px; font-size:11px; font-weight:600; cursor:pointer;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="crmRequested" ${crmChecked}> CRM</label>
+                <label style="display:inline-flex; align-items:center; gap:3px; font-size:11px; font-weight:600; cursor:pointer;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="takimRequested" ${takimChecked}> TAKIM</label>
+                <label style="display:inline-flex; align-items:center; gap:3px; font-size:11px; font-weight:600; cursor:pointer;"><input type="checkbox" class="draft-chk" data-id="${d.id}" data-field="sayimRequested" ${sayimChecked}> SAYIM</label>
+              </div>
+            `;
 
-          const badgesHtml = [];
+            return `<tr>
+                  <td>
+                    <a href="${d.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(d.fileUrl)}', '${esc(d.fileName)}')">
+                      📁 ${esc(d.fileName)} (${formatBytes(d.fileSize)})
+                    </a>
+                  </td>
+                  <td>${esc(d.uploadedBy)}</td>
+                  <td>${dateStr}</td>
+                  <td style="text-align:center;">
+                    ${checkboxHtml}
+                  </td>
+                  <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
+                    <button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent);" onclick="sendDraftToForm('${d.id}')" title="Talebe Gönder">Talebe Gönder ➡️</button>
+                    <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
+                  </td>
+                </tr>`;
+          } else {
+            // Find linked project by matching DraftID in notes, or fileUrl/fileName
+            const linkedProject = projects.find(p => {
+              if (p.notes && p.notes.includes(`[DraftID: ${d.id}]`)) return true;
+              return p.fileDwgData === d.fileUrl || p.fileDwgName === d.fileName;
+            });
 
-          if (d.crmRequested) {
-            const crmValid = !!linkedProject;
-            crmOk = crmValid;
-            const color = crmValid ? '#2ecc71' : '#e74c3c';
-            badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">CRM</span>`);
+            let crmOk = !d.crmRequested;
+            let takimOk = !d.takimRequested;
+            let sayimOk = !d.sayimRequested;
+
+            const badgesHtml = [];
+
+            if (d.crmRequested) {
+              const crmValid = !!linkedProject;
+              crmOk = crmValid;
+              const color = crmValid ? '#2ecc71' : '#e74c3c';
+              badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">CRM</span>`);
+            }
+
+            if (d.takimRequested) {
+              const takimValid = linkedProject &&
+                linkedProject.fileDwgData && linkedProject.fileDwgData.trim() !== '' &&
+                linkedProject.fileAxdData && linkedProject.fileAxdData.trim() !== '';
+              takimOk = takimValid;
+              const color = takimValid ? '#2ecc71' : '#e74c3c';
+              badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">TAKIM</span>`);
+            }
+
+            if (d.sayimRequested) {
+              const sayimValid = linkedProject &&
+                linkedProject.fileExcelData && linkedProject.fileExcelData.trim() !== '';
+              sayimOk = sayimValid;
+              const color = sayimValid ? '#2ecc71' : '#e74c3c';
+              badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">SAYIM</span>`);
+            }
+
+            // If all active checkboxes are satisfied, auto-transition to completed!
+            if (crmOk && takimOk && sayimOk) {
+              d.status = 'tamamlanan';
+              updateDraftStatusInDbSilent(d.id, 'status', 'tamamlanan');
+              needsRerender = true;
+            }
+
+            return `<tr>
+                  <td>
+                    <a href="${d.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(d.fileUrl)}', '${esc(d.fileName)}')">
+                      📁 ${esc(d.fileName)} (${formatBytes(d.fileSize)})
+                    </a>
+                  </td>
+                  <td>${esc(d.uploadedBy)}</td>
+                  <td>${dateStr}</td>
+                  <td style="text-align:center;">
+                    ${badgesHtml.join('')}
+                  </td>
+                  <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
+                    ${linkedProject ?
+                      `<button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:#3498db;" onclick="startEditProject('${linkedProject.id}')" title="Taslağı Düzenle">Taslağı Düzenle 📝</button>` :
+                      `<button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent-dark);" onclick="sendDraftToForm('${d.id}')" title="Yeni Talep Formuna Git">Taslağı Düzenle 📝</button>`
+                    }
+                    <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
+                  </td>
+                </tr>`;
           }
-
-          if (d.takimRequested) {
-            const takimValid = linkedProject &&
-              linkedProject.fileDwgData && linkedProject.fileDwgData.trim() !== '' &&
-              linkedProject.fileAxdData && linkedProject.fileAxdData.trim() !== '';
-            takimOk = takimValid;
-            const color = takimValid ? '#2ecc71' : '#e74c3c';
-            badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">TAKIM</span>`);
-          }
-
-          if (d.sayimRequested) {
-            const sayimValid = linkedProject &&
-              linkedProject.fileExcelData && linkedProject.fileExcelData.trim() !== '';
-            sayimOk = sayimValid;
-            const color = sayimValid ? '#2ecc71' : '#e74c3c';
-            badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">SAYIM</span>`);
-          }
-
-          // If all active checkboxes are satisfied, auto-transition to completed!
-          if (crmOk && takimOk && sayimOk) {
-            d.status = 'tamamlanan';
-            updateDraftStatusInDbSilent(d.id, 'status', 'tamamlanan');
-            needsRerender = true;
-          }
-
-          return `<tr>
-                <td>
-                  <a href="${d.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(d.fileUrl)}', '${esc(d.fileName)}')">
-                    📁 ${esc(d.fileName)} (${formatBytes(d.fileSize)})
-                  </a>
-                </td>
-                <td>${esc(d.uploadedBy)}</td>
-                <td>${dateStr}</td>
-                <td style="text-align:center;">
-                  ${badgesHtml.join('')}
-                </td>
-                <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
-                  ${linkedProject ?
-                    `<button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:#3498db;" onclick="startEditProject('${linkedProject.id}')" title="Taslağı Düzenle">Taslağı Düzenle 📝</button>` :
-                    `<button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent-dark);" onclick="sendDraftToForm('${d.id}')" title="Yeni Talep Formuna Git">Taslağı Düzenle 📝</button>`
-                  }
-                  <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
-                </td>
-              </tr>`;
         }).join('');
 
         if (needsRerender) {
@@ -2387,8 +2385,8 @@
       }
     }
 
-    // Attach change listeners to Mevcut table checkboxes
-    document.querySelectorAll('#draftsListTable .draft-chk').forEach(chk => {
+    // Attach change listeners to table checkboxes
+    document.querySelectorAll('#draftsPendingTable .draft-chk').forEach(chk => {
       chk.addEventListener('change', async (e) => {
         const id = e.target.dataset.id;
         const field = e.target.dataset.field;
