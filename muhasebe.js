@@ -67,7 +67,7 @@
   }
 
   function toTitleCase(str) {
-    return str.split(' ').map(word => {
+    let result = str.split(' ').map(word => {
       if (!word) return '';
       let first = word.charAt(0);
       if (first === 'i' || first === 'İ') first = 'İ';
@@ -77,6 +77,12 @@
       let rest = word.slice(1).replace(/I/g, 'ı').replace(/İ/g, 'i').toLowerCase();
       return first + rest;
     }).join(' ');
+
+    // Post-processing to enforce uppercase "AK" in "AK-xxx" and lowercase "m²"
+    result = result.replace(/\bAk-(\d+)/g, 'AK-$1');
+    result = result.replace(/M²/g, 'm²');
+    result = result.replace(/M2/g, 'm²');
+    return result;
   }
 
   function todayISO() {
