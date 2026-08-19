@@ -258,6 +258,7 @@
   const countPill = $('countPill');
   const searchInput = $('searchInput');
   const draftSearchInput = $('draftSearchInput');
+  const draftSortSelect = $('draftSortSelect');
   const btnSaveDraft = $('btnSaveDraft');
   const toast = $('toast');
 
@@ -2496,8 +2497,27 @@
       );
     };
 
-    const activeDrafts = drafts.filter(d => (d.status || 'mevcut') === 'mevcut' || d.status === 'bekleyen').filter(filterFn);
-    const completed = drafts.filter(d => d.status === 'tamamlanan').filter(filterFn);
+    const sortBy = draftSortSelect ? draftSortSelect.value : 'date-desc';
+
+    const sortFn = (a, b) => {
+      if (sortBy === 'date-asc') {
+        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      } else if (sortBy === 'date-desc') {
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      } else if (sortBy === 'name-asc') {
+        return (a.fileName || '').localeCompare(b.fileName || '', 'tr');
+      } else if (sortBy === 'name-desc') {
+        return (b.fileName || '').localeCompare(a.fileName || '', 'tr');
+      } else if (sortBy === 'uploader-asc') {
+        return (a.uploadedBy || '').localeCompare(b.uploadedBy || '', 'tr');
+      } else if (sortBy === 'uploader-desc') {
+        return (b.uploadedBy || '').localeCompare(a.uploadedBy || '', 'tr');
+      }
+      return 0;
+    };
+
+    const activeDrafts = drafts.filter(d => (d.status || 'mevcut') === 'mevcut' || d.status === 'bekleyen').filter(filterFn).sort(sortFn);
+    const completed = drafts.filter(d => d.status === 'tamamlanan').filter(filterFn).sort(sortFn);
 
     // Helper for CRM extraction
     const extractCrmCode = (filename) => {
@@ -2708,6 +2728,9 @@
   searchInput.addEventListener('input', renderGrid);
   if (draftSearchInput) {
     draftSearchInput.addEventListener('input', renderDrafts);
+  }
+  if (draftSortSelect) {
+    draftSortSelect.addEventListener('change', renderDrafts);
   }
   $('btnSubmit').addEventListener('click', submitForm);
   if (btnSaveDraft) {

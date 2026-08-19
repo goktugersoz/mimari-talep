@@ -292,8 +292,18 @@ comment on table draft_projects is 'Draft Projects Table';</pre>
           <button class="btn-submit" id="btnUploadDraft" style="width: auto;">Taslağı Sisteme Yükle</button>
         </div>
       </div>
-      <div class="toolbar" style="margin-top: 25px; margin-bottom: 15px; max-width: 560px;">
-        <input id="draftSearchInput" type="text" placeholder="Taslak adı, yükleyen veya taleplere göre ara…">
+      <div class="toolbar" style="margin-top: 25px; margin-bottom: 15px; max-width: 560px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <input id="draftSearchInput" type="text" placeholder="Taslak adı, yükleyen veya taleplere göre ara…" style="flex: 1; min-width: 200px;">
+        <div class="select-wrap" style="width: 180px; flex-shrink: 0;">
+          <select id="draftSortSelect" style="font-family:'Montserrat',sans-serif; font-size:13px; padding: 10px 12px; border: 1.5px solid var(--grid-line); background: var(--paper); border-radius: 6px; width: 100%;">
+            <option value="date-desc">Tarih (Yeniye Göre)</option>
+            <option value="date-asc">Tarih (Eskiye Göre)</option>
+            <option value="name-asc">Dosya Adı (A-Z)</option>
+            <option value="name-desc">Dosya Adı (Z-A)</option>
+            <option value="uploader-asc">Yükleyen (A-Z)</option>
+            <option value="uploader-desc">Yükleyen (Z-A)</option>
+          </select>
+        </div>
       </div>
 
       <h3
