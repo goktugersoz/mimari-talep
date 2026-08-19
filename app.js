@@ -2058,6 +2058,8 @@
       renderDrafts();
       return;
     }
+    // Ensure projects are synced from database before rendering draft badge statuses
+    await loadProjects();
     try {
       const { data, error } = await supabase.from('draft_projects').select('*').order('created_at', { ascending: false });
       if (error) throw error;
