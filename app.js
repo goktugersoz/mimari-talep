@@ -257,6 +257,7 @@
   const gridArea = $('gridArea');
   const countPill = $('countPill');
   const searchInput = $('searchInput');
+  const draftSearchInput = $('draftSearchInput');
   const toast = $('toast');
 
   function showToast(msg, isErr) {
@@ -2300,8 +2301,33 @@
     const listPending = $('draftsPendingTable');
     const listCompleted = $('draftsCompletedTable');
 
-    const activeDrafts = drafts.filter(d => (d.status || 'mevcut') === 'mevcut' || d.status === 'bekleyen');
-    const completed = drafts.filter(d => d.status === 'tamamlanan');
+    const query = draftSearchInput ? (draftSearchInput.value || '').trim().toLocaleLowerCase('tr-TR') : '';
+
+    const filterFn = d => {
+      if (!query) return true;
+      const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR').toLocaleLowerCase('tr-TR') : '';
+      const sizeStr = formatBytes(d.fileSize).toLocaleLowerCase('tr-TR');
+      const name = (d.fileName || '').toLocaleLowerCase('tr-TR');
+      const uploaded = (d.uploadedBy || '').toLocaleLowerCase('tr-TR');
+      
+      const demands = [];
+      if (d.crmRequested) demands.push('crm');
+      if (d.takimRequested) demands.push('takim');
+      if (d.sayimRequested) demands.push('sayim');
+      const demandsStr = demands.join(' ');
+
+      const terms = query.split(/\s+/);
+      return terms.every(term => 
+        name.includes(term) || 
+        uploaded.includes(term) || 
+        dateStr.includes(term) || 
+        sizeStr.includes(term) ||
+        demandsStr.includes(term)
+      );
+    };
+
+    const activeDrafts = drafts.filter(d => (d.status || 'mevcut') === 'mevcut' || d.status === 'bekleyen').filter(filterFn);
+    const completed = drafts.filter(d => d.status === 'tamamlanan').filter(filterFn);
 
     // Helper for CRM extraction
     const extractCrmCode = (filename) => {
@@ -2313,7 +2339,7 @@
     // Render Pending (now includes newly uploaded/mevcut drafts)
     if (listPending) {
       if (activeDrafts.length === 0) {
-        listPending.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--ink-soft); padding:30px;">Bekleyen taslak bulunmamaktadır.</td></tr>`;
+        listPending.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--ink-soft); padding:30px;">${query ? 'Aramanızla eşleşen bekleyen taslak bulunamadı.' : 'Bekleyen taslak bulunmamaktadır.'}</td></tr>`;
       } else {
         let needsRerender = false;
         listPending.innerHTML = activeDrafts.map(d => {
@@ -2422,7 +2448,7 @@
     // Render Completed
     if (listCompleted) {
       if (completed.length === 0) {
-        listCompleted.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--ink-soft); padding:30px;">Tamamlanan taslak bulunmamaktadır.</td></tr>`;
+        listCompleted.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--ink-soft); padding:30px;">${query ? 'Aramanızla eşleşen tamamlanan taslak bulunamadı.' : 'Tamamlanan taslak bulunmamaktadır.'}</td></tr>`;
       } else {
         listCompleted.innerHTML = completed.map(d => {
           const dateStr = d.createdAt ? new Date(d.createdAt).toLocaleDateString('tr-TR') : '—';
@@ -2504,6 +2530,9 @@
   });
 
   searchInput.addEventListener('input', renderGrid);
+  if (draftSearchInput) {
+    draftSearchInput.addEventListener('input', renderDrafts);
+  }
   $('btnSubmit').addEventListener('click', submitForm);
   $('btnCancelEdit').addEventListener('click', cancelEdit);
   if ($('btnSendToFabrika')) {
