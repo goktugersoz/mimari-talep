@@ -2015,7 +2015,7 @@
     $('cell-crm').querySelector('.field-err').textContent = 'Format: YY-00000';
 
     $('tbTopTitle').textContent = 'ÇİZİM TALEP KİMLİK BLOĞU';
-    $('btnSubmit').textContent = 'Listeye Ekle';
+    $('btnSubmit').textContent = 'Kaydet';
     $('btnCancelEdit').classList.add('hidden');
     if ($('btnSendToFabrika')) $('btnSendToFabrika').classList.add('hidden');
   }
