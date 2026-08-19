@@ -1959,6 +1959,7 @@
 
     if (ok) {
       showToast(editingProjectId ? 'Değişiklikler kaydedildi.' : 'Talep listeye eklendi: ' + crm);
+      const wasDraftProject = !!activeDraftIdForNewProject || (editingProjectId && drafts.some(d => (projects.find(p => p.id === editingProjectId)?.notes || '').includes(`[DraftID: ${d.id}]`)));
       if (activeDraftIdForNewProject) {
         // Do not force completed status; let the dynamic rules in renderDrafts handle it.
         activeDraftIdForNewProject = null;
@@ -1971,7 +1972,11 @@
       // Trigger draft status refresh
       loadDrafts();
 
-      switchTab('board');
+      if (wasDraftProject) {
+        switchTab('drafts');
+      } else {
+        switchTab('board');
+      }
     }
   }
 
