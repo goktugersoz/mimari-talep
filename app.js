@@ -258,6 +258,7 @@
   const countPill = $('countPill');
   const searchInput = $('searchInput');
   const draftSearchInput = $('draftSearchInput');
+  const btnSaveDraft = $('btnSaveDraft');
   const toast = $('toast');
 
   function showToast(msg, isErr) {
@@ -1475,6 +1476,8 @@
     if (draftObj) {
       updateDraftStatus(draftId, 'status', 'bekleyen');
       activeDraftIdForNewProject = draftId;
+      if (btnSaveDraft) btnSaveDraft.classList.remove('hidden');
+      $('btnSubmit').textContent = 'Panoya Ekle';
       
       const tales = [];
       if (draftObj.crmRequested) tales.push('CRM');
@@ -1484,6 +1487,11 @@
       let currentNotes = p.notes || '';
       if (!currentNotes.includes(`[DraftID: ${draftObj.id}]`)) {
         $('inpNotes').value = `[Taslaktan Talebe Gönderildi. Talepler: ${tales.join(', ')}] [DraftID: ${draftObj.id}]\n` + currentNotes;
+      }
+    } else {
+      if (btnSaveDraft) btnSaveDraft.classList.add('hidden');
+      if (!onlyPersonnelEdit) {
+        $('btnSubmit').textContent = 'Değişiklikleri Kaydet';
       }
     }
 
@@ -2017,6 +2025,7 @@
     $('tbTopTitle').textContent = 'ÇİZİM TALEP KİMLİK BLOĞU';
     $('btnSubmit').textContent = 'Kaydet';
     $('btnCancelEdit').classList.add('hidden');
+    if (btnSaveDraft) btnSaveDraft.classList.add('hidden');
     if ($('btnSendToFabrika')) $('btnSendToFabrika').classList.add('hidden');
   }
 
@@ -2068,18 +2077,37 @@
     try {
       const { data, error } = await supabase.from('draft_projects').select('*').order('created_at', { ascending: false });
       if (error) throw error;
-      drafts = (data || []).map(d => ({
-        id: d.id,
-        fileName: d.file_name,
-        fileUrl: d.file_url,
-        fileSize: d.file_size,
-        crmRequested: !!d.crm_requested,
-        takimRequested: !!d.takim_requested,
-        sayimRequested: !!d.sayim_requested,
-        uploadedBy: d.uploaded_by || '—',
-        createdAt: d.created_at,
-        status: d.status || 'mevcut'
-      }));
+      drafts = (data || []).map(d => {
+        let details = null;
+        let fileUrl = d.file_url;
+        let fileName = d.file_name;
+        let fileSize = d.file_size;
+        
+        if (d.file_url && d.file_url.trim().startsWith('{') && d.file_url.trim().endsWith('}')) {
+          try {
+            details = JSON.parse(d.file_url);
+            if (details.dwg) {
+              fileUrl = details.dwg.url || d.file_url;
+              fileName = details.dwg.name || d.file_name;
+              fileSize = details.dwg.size || d.file_size;
+            }
+          } catch(e) {}
+        }
+        
+        return {
+          id: d.id,
+          fileName: fileName,
+          fileUrl: fileUrl,
+          fileSize: fileSize,
+          crmRequested: !!d.crm_requested,
+          takimRequested: !!d.takim_requested,
+          sayimRequested: !!d.sayim_requested,
+          uploadedBy: d.uploaded_by || '—',
+          createdAt: d.created_at,
+          status: d.status || 'mevcut',
+          details: details
+        };
+      });
       $('draftsTableWarning').classList.add('hidden');
     } catch (e) {
       console.error("Supabase loadDrafts error:", e);
@@ -2095,6 +2123,102 @@
 
   async function saveDrafts() {
     return true;
+  }
+
+  async function saveDraftOnly() {
+    // Determine the draft ID to update
+    let draftId = activeDraftIdForNewProject;
+    if (!draftId && editingProjectId) {
+      const p = projects.find(pr => pr.id === editingProjectId);
+      if (p) {
+        const match = /\[DraftID:\s*([a-zA-Z0-9_-]+)\]/.exec(p.notes || '');
+        if (match) draftId = match[1];
+      }
+    }
+
+    if (!draftId) {
+      showToast("Güncellenecek taslak bulunamadı.", true);
+      return;
+    }
+
+    const d = drafts.find(x => x.id === draftId);
+    if (!d) {
+      showToast("Taslak projesi bulunamadı.", true);
+      return;
+    }
+
+    btnSaveDraft.disabled = true;
+
+    try {
+      // 1. Upload files if any have fileRaw
+      let fileUrls = { dwg: null, excel: null, axd: null };
+      for (let type of ['dwg', 'excel', 'axd']) {
+        if (attachedFiles[type]) {
+          if (attachedFiles[type].fileRaw) {
+            fileUrls[type] = await uploadProjectFile(attachedFiles[type]);
+          } else {
+            fileUrls[type] = attachedFiles[type].data;
+          }
+        }
+      }
+
+      // 2. Gather values from form fields
+      const company = $('selCompany').value.trim();
+      const buildingCode = $('inpBuildingCode').value.trim();
+      const areaM2 = $('inpAreaM2').value.trim();
+      const customerName = $('inpCustomerName').value.trim();
+      const projectType = $('selType').value.trim();
+      const employee = $('selEmployee').value.trim();
+      const date = $('inpDate').value || todayISO();
+      const notes = $('inpNotes').value.trim();
+
+      const fileDwgName = attachedFiles.dwg ? attachedFiles.dwg.name : null;
+      const fileDwgSize = attachedFiles.dwg ? attachedFiles.dwg.size : null;
+      const fileDwgData = fileUrls.dwg;
+      const fileExcelName = attachedFiles.excel ? attachedFiles.excel.name : null;
+      const fileExcelSize = attachedFiles.excel ? attachedFiles.excel.size : null;
+      const fileExcelData = fileUrls.excel;
+      const fileAxdName = attachedFiles.axd ? attachedFiles.axd.name : null;
+      const fileAxdSize = attachedFiles.axd ? attachedFiles.axd.size : null;
+      const fileAxdData = fileUrls.axd;
+
+      // 3. Serialize details
+      const detailsJson = JSON.stringify({
+        company,
+        buildingCode,
+        areaM2,
+        customerName,
+        projectType,
+        employee,
+        date,
+        notes,
+        dwg: { name: fileDwgName, size: fileDwgSize, url: fileDwgData },
+        excel: { name: fileExcelName, size: fileExcelSize, url: fileExcelData },
+        axd: { name: fileAxdName, size: fileAxdSize, url: fileAxdData }
+      });
+
+      // 4. Update the draft_projects row in Supabase
+      if (useSupabase) {
+        // Also compute overall file size
+        const overallSize = (fileDwgSize || 0) + (fileExcelSize || 0) + (fileAxdSize || 0);
+        const { error } = await supabase.from('draft_projects').update({
+          file_url: detailsJson,
+          file_size: overallSize
+        }).eq('id', draftId);
+        
+        if (error) throw error;
+      }
+
+      showToast("Taslak güncellendi.");
+      resetForm();
+      await loadDrafts();
+      switchTab('drafts');
+    } catch (e) {
+      console.error("saveDraftOnly error:", e);
+      showToast("Taslak kaydedilemedi: " + e.message, true);
+    } finally {
+      btnSaveDraft.disabled = false;
+    }
   }
 
   window.downloadDraftFileCustom = async function (e, url, originalName) {
@@ -2245,7 +2369,12 @@
     }
 
     await updateDraftStatus(id, 'status', 'bekleyen');
+    
+    // Reset form first, then configure for draft project mode
+    resetForm();
     activeDraftIdForNewProject = id;
+    if (btnSaveDraft) btnSaveDraft.classList.remove('hidden');
+    $('btnSubmit').textContent = 'Panoya Ekle';
 
     // Fill Dwg input
     attachedFiles.dwg = {
@@ -2283,7 +2412,38 @@
       return;
     }
 
-    $('inpNotes').value = `[Taslaktan Talebe Gönderildi. Talepler: ${tales.join(', ')}] [DraftID: ${d.id}]`;
+    // Populate saved draft details if available
+    if (d.details) {
+      if (d.details.company) $('selCompany').value = d.details.company;
+      if (d.details.buildingCode) $('inpBuildingCode').value = d.details.buildingCode;
+      if (d.details.areaM2) $('inpAreaM2').value = d.details.areaM2;
+      if (d.details.customerName) $('inpCustomerName').value = d.details.customerName;
+      if (d.details.projectType) $('selType').value = d.details.projectType;
+      if (d.details.employee) $('selEmployee').value = d.details.employee;
+      if (d.details.date) $('inpDate').value = d.details.date;
+      if (d.details.notes) {
+        $('inpNotes').value = d.details.notes;
+      } else {
+        $('inpNotes').value = `[Taslaktan Talebe Gönderildi. Talepler: ${tales.join(', ')}] [DraftID: ${d.id}]`;
+      }
+
+      // Load other files from details if they exist
+      ['excel', 'axd'].forEach(type => {
+        const uType = type.charAt(0).toUpperCase() + type.slice(1);
+        if (d.details[type] && d.details[type].url) {
+          attachedFiles[type] = {
+            name: d.details[type].name,
+            size: d.details[type].size,
+            data: d.details[type].url,
+            fileRaw: null
+          };
+          $('fileStatus' + uType).textContent = `Hazır (Taslak): ${d.details[type].name} (${formatBytes(d.details[type].size)})`;
+          $('btnRemoveFile' + uType).classList.remove('hidden');
+        }
+      });
+    } else {
+      $('inpNotes').value = `[Taslaktan Talebe Gönderildi. Talepler: ${tales.join(', ')}] [DraftID: ${d.id}]`;
+    }
 
     switchTab('form');
     renderDrafts();
@@ -2541,6 +2701,9 @@
     draftSearchInput.addEventListener('input', renderDrafts);
   }
   $('btnSubmit').addEventListener('click', submitForm);
+  if (btnSaveDraft) {
+    btnSaveDraft.addEventListener('click', saveDraftOnly);
+  }
   $('btnCancelEdit').addEventListener('click', cancelEdit);
   if ($('btnSendToFabrika')) {
     $('btnSendToFabrika').addEventListener('click', async () => {
