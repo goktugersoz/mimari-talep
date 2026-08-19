@@ -2019,6 +2019,7 @@
     $('employeeWarning').classList.add('hidden');
     $('inpDate').value = todayISO();
     $('inpCrm').value = suggestNextCrm();
+    $('inpCrm').placeholder = 'YY-00000';
     ['cell-company', 'cell-crm', 'cell-area', 'cell-m2', 'cell-type'].forEach(id => $(id).classList.remove('invalid'));
     $('cell-crm').querySelector('.field-err').textContent = 'Format: YY-00000';
 
@@ -2372,6 +2373,8 @@
     
     // Reset form first, then configure for draft project mode
     resetForm();
+    $('inpCrm').value = '';
+    $('inpCrm').placeholder = 'Panoya eklenince atanacaktır';
     activeDraftIdForNewProject = id;
     if (btnSaveDraft) btnSaveDraft.classList.remove('hidden');
     $('btnSubmit').textContent = 'Panoya Ekle';
@@ -2557,11 +2560,7 @@
             const badgesHtml = [];
 
             if (d.crmRequested) {
-              const crmValid = !!(
-                (linkedProject && linkedProject.fileDwgData && linkedProject.fileDwgData.trim() !== '') || 
-                (d.details && d.details.dwg && d.details.dwg.url && d.details.dwg.url.trim() !== '') ||
-                (d.fileUrl && d.fileUrl.trim() !== '')
-              );
+              const crmValid = !!(linkedProject && linkedProject.crmCode && linkedProject.crmCode.trim() !== '');
               crmOk = crmValid;
               const color = crmValid ? '#2ecc71' : '#e74c3c';
               badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">CRM</span>`);
