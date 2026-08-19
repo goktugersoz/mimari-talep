@@ -2557,21 +2557,31 @@
             const badgesHtml = [];
 
             if (d.crmRequested) {
-              const crmValid = !!(linkedProject && linkedProject.fileDwgData && linkedProject.fileDwgData.trim() !== '');
+              const crmValid = !!(
+                (linkedProject && linkedProject.fileDwgData && linkedProject.fileDwgData.trim() !== '') || 
+                (d.details && d.details.dwg && d.details.dwg.url && d.details.dwg.url.trim() !== '') ||
+                (d.fileUrl && d.fileUrl.trim() !== '')
+              );
               crmOk = crmValid;
               const color = crmValid ? '#2ecc71' : '#e74c3c';
               badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">CRM</span>`);
             }
 
             if (d.takimRequested) {
-              const takimValid = !!(linkedProject && linkedProject.fileAxdData && linkedProject.fileAxdData.trim() !== '');
+              const takimValid = !!(
+                (linkedProject && linkedProject.fileAxdData && linkedProject.fileAxdData.trim() !== '') || 
+                (d.details && d.details.axd && d.details.axd.url && d.details.axd.url.trim() !== '')
+              );
               takimOk = takimValid;
               const color = takimValid ? '#2ecc71' : '#e74c3c';
               badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">TAKIM</span>`);
             }
 
             if (d.sayimRequested) {
-              const sayimValid = !!(linkedProject && linkedProject.fileExcelData && linkedProject.fileExcelData.trim() !== '');
+              const sayimValid = !!(
+                (linkedProject && linkedProject.fileExcelData && linkedProject.fileExcelData.trim() !== '') || 
+                (d.details && d.details.excel && d.details.excel.url && d.details.excel.url.trim() !== '')
+              );
               sayimOk = sayimValid;
               const color = sayimValid ? '#2ecc71' : '#e74c3c';
               badgesHtml.push(`<span style="display:inline-block; font-size:10px; background:${color}; color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">SAYIM</span>`);
