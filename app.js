@@ -1444,7 +1444,7 @@
       $('inpFileDwg').disabled = false;
       $('inpFileExcel').disabled = false;
       $('inpFileAxd').disabled = false;
-      $('btnSubmit').textContent = 'Değişiklikleri Kaydet';
+      $('btnSubmit').textContent = 'Panoya Kaydet';
     }
 
     // Fill company
@@ -1478,7 +1478,7 @@
       updateDraftStatus(draftId, 'status', 'bekleyen');
       activeDraftIdForNewProject = draftId;
       if (btnSaveDraft) btnSaveDraft.classList.remove('hidden');
-      $('btnSubmit').textContent = 'Panoya Ekle';
+      $('btnSubmit').textContent = 'Panoya Kaydet';
       
       const tales = [];
       if (draftObj.crmRequested) tales.push('CRM');
@@ -1492,7 +1492,7 @@
     } else {
       if (btnSaveDraft) btnSaveDraft.classList.add('hidden');
       if (!onlyPersonnelEdit) {
-        $('btnSubmit').textContent = 'Değişiklikleri Kaydet';
+        $('btnSubmit').textContent = 'Panoya Kaydet';
       }
     }
 
@@ -1543,7 +1543,9 @@
 
     // Edit mode UI
     $('tbTopTitle').textContent = 'TALEBİ DÜZENLE';
-    $('btnSubmit').textContent = 'Değişiklikleri Kaydet';
+    if (!onlyPersonnelEdit) {
+      $('btnSubmit').textContent = 'Panoya Kaydet';
+    }
     $('btnCancelEdit').classList.remove('hidden');
     if ($('btnSendToFabrika')) $('btnSendToFabrika').classList.remove('hidden');
 
