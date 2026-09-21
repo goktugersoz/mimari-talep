@@ -54,9 +54,10 @@
       } catch (e) {
         console.error("saveSettings Supabase error:", e);
       }
-    } else {
-      await setStorageItem('mimari-crm-start-code', crmStartCode);
     }
+    try {
+      await setStorageItem('mimari-crm-start-code', crmStartCode);
+    } catch (e) {}
   }
 
   async function handleSaveSettings() {
@@ -68,11 +69,11 @@
     $('btnAdminSaveSettings').disabled = true;
     await saveSettings(val);
     updateNextCodeHint();
-    if (!$('inpCrm').value || !editingProjectId) {
+    if (!editingProjectId) {
       $('inpCrm').value = suggestNextCrm();
     }
     $('btnAdminSaveSettings').disabled = false;
-    showToast('Genel ayarlar kaydedildi.');
+    showToast('Genel ayarlar kaydedildi: ' + val);
   }
 
   function parseNotesField(notesStr) {
@@ -725,7 +726,7 @@
         const { data: settingsData } = await supabase.from('projects').select('notes').eq('id', '__settings__');
         if (settingsData && settingsData.length > 0) {
           try {
-            const parsed = JSON.parse(settingsData[0].notes);
+            const parsed = typeof settingsData[0].notes === 'string' ? JSON.parse(settingsData[0].notes) : settingsData[0].notes;
             crmStartCode = parsed.crmStartCode || (parsed.crmStartSeq ? (String(new Date().getFullYear()).slice(-2) + '-' + String(parsed.crmStartSeq).padStart(5, '0')) : crmStartCode);
           } catch (e) {
             const oldSeq = parseInt(settingsData[0].notes);
@@ -822,6 +823,11 @@
     loaded = true;
     renderGrid();
     updateNextCodeHint();
+    if (!editingProjectId && !activeDraftIdForNewProject) {
+      if (!$('inpCrm').value || $('inpCrm').value === '26-00001') {
+        $('inpCrm').value = suggestNextCrm();
+      }
+    }
     renderPersonnelPanel();
     checkEmployeeWarning();
   }
@@ -1202,7 +1208,7 @@
 
   // ---- CRM code suggestion ----
   function suggestNextCrm() {
-    const matchStart = /^(\d{2})-(\d{5})$/.exec(crmStartCode.trim());
+    const matchStart = /^(\d{2})-(\d{5})$/.exec((crmStartCode || '').trim());
     let configPrefix = String(new Date().getFullYear()).slice(-2);
     let startSeq = 1;
     if (matchStart) {
@@ -1210,16 +1216,16 @@
       startSeq = parseInt(matchStart[2], 10);
     }
 
-    let maxSeq = startSeq - 1;
-    projects.forEach(p => {
-      const m = /^(\d{2})-(\d{5})$/.exec((p.crmCode || '').trim());
-      if (m && m[1] === configPrefix) {
-        const seq = parseInt(m[2], 10);
-        if (seq > maxSeq) maxSeq = seq;
-      }
-    });
-    const next = String(maxSeq + 1).padStart(5, '0');
-    return `${configPrefix}-${next}`;
+    const existingCrmSet = new Set(
+      projects.map(p => (p.crmCode || '').trim()).filter(Boolean)
+    );
+
+    let seq = startSeq;
+    while (existingCrmSet.has(`${configPrefix}-${String(seq).padStart(5, '0')}`)) {
+      seq++;
+    }
+
+    return `${configPrefix}-${String(seq).padStart(5, '0')}`;
   }
 
   function updateNextCodeHint() {
@@ -1778,7 +1784,10 @@
     }
 
     if (!editingProjectId) {
-      $('inpCrm').value = suggestNextCrm();
+      const currentInpCrm = $('inpCrm').value.trim();
+      if (!/^\d{2}-\d{5}$/.test(currentInpCrm) || projects.some(p => p.crmCode === currentInpCrm)) {
+        $('inpCrm').value = suggestNextCrm();
+      }
     }
 
     const formattedCode = formatBuildingCode($('inpBuildingCode').value);
@@ -1974,6 +1983,10 @@
       if (activeDraftIdForNewProject) {
         // Do not force completed status; let the dynamic rules in renderDrafts handle it.
         activeDraftIdForNewProject = null;
+      }
+      if (!editingProjectId) {
+        crmStartCode = suggestNextCrm();
+        saveSettings(crmStartCode);
       }
       resetForm();
       renderGrid();
@@ -2376,8 +2389,6 @@
     
     // Reset form first, then configure for draft project mode
     resetForm();
-    $('inpCrm').value = '';
-    $('inpCrm').placeholder = 'Panoya eklenince atanacaktır';
     activeDraftIdForNewProject = id;
     if (btnSaveDraft) btnSaveDraft.classList.remove('hidden');
     $('btnSubmit').textContent = 'Panoya Ekle';
@@ -2417,6 +2428,13 @@
       showToast("Taslak bilgileri panodaki mevcut projeden alındı.");
       return;
     }
+
+    if (draftCrm && !projects.some(p => p.crmCode === draftCrm)) {
+      $('inpCrm').value = draftCrm;
+    } else {
+      $('inpCrm').value = suggestNextCrm();
+    }
+    updateNextCodeHint();
 
     // Populate saved draft details if available
     if (d.details) {
@@ -2707,6 +2725,16 @@
     if (e.key === 'Enter') { e.preventDefault(); addAdminUser(); }
   });
   $('btnAdminSaveSettings').addEventListener('click', handleSaveSettings);
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'mimari-crm-start-code' && e.newValue) {
+      crmStartCode = e.newValue.trim();
+      updateNextCodeHint();
+      if (!editingProjectId && !activeDraftIdForNewProject) {
+        $('inpCrm').value = suggestNextCrm();
+      }
+    }
+  });
 
   function updateViewToggleBtn() {
     if (currentView === 'list') {

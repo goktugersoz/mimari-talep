@@ -650,9 +650,10 @@
       } catch (e) {
         console.error("saveSettings Supabase error:", e);
       }
-    } else {
-      await setStorageItem('mimari-crm-start-code', crmStartCode);
     }
+    try {
+      await setStorageItem('mimari-crm-start-code', crmStartCode);
+    } catch (e) {}
   }
 
   async function handleSaveSettings() {
