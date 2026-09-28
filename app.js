@@ -2238,9 +2238,212 @@
     }
   }
 
+  // --- AUTOCAD LOCAL BRIDGE & DRAFT DIRECT SYNC ---
+  let isBridgeConnected = false;
+  const BRIDGE_URL = 'http://127.0.0.1:48791';
+
+  window.openAutoCadHelpModal = function () {
+    const m = $('modalAutoCadHelp');
+    if (m) m.classList.remove('hidden');
+  };
+
+  window.closeAutoCadHelpModal = function () {
+    const m = $('modalAutoCadHelp');
+    if (m) m.classList.add('hidden');
+  };
+
+  function updateBridgeUI() {
+    const bar = $('autocadBridgeBar');
+    const text = $('bridgeStatusText');
+    if (!bar || !text) return;
+
+    if (isBridgeConnected) {
+      bar.className = 'autocad-bridge-bar connected';
+      text.innerHTML = '<strong>🟢 AutoCAD Köprüsü Aktif:</strong> Tıkladığınızda AutoCAD doğrudan açılır, <strong>Ctrl+S</strong> ile kaydettiğinizde sisteme otomatik yüklenir.';
+    } else {
+      bar.className = 'autocad-bridge-bar disconnected';
+      text.innerHTML = '<strong>⚪ AutoCAD Köprüsü Kapalı:</strong> Tam otomatik açma & kaydetme için <strong>autocad_koprusu.bat</strong> dosyasını çalıştırabilirsiniz.';
+    }
+  }
+
+  window.checkBridgeStatus = async function (manualClick = false) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1800);
+      const res = await fetch(`${BRIDGE_URL}/status`, { signal: controller.signal, mode: 'cors' });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        isBridgeConnected = (data.status === 'ok');
+        updateBridgeUI();
+        if (manualClick) showToast("AutoCAD Köprüsü bağlı ve hazır! 🟢");
+        return true;
+      }
+    } catch (e) {
+      // Bridge kapalı
+    }
+    isBridgeConnected = false;
+    updateBridgeUI();
+    if (manualClick) {
+      showToast("AutoCAD köprüsüne bağlanılamadı. autocad_koprusu.bat dosyasını çalıştırın.", true);
+    }
+    return false;
+  };
+
+  async function pollBridgeUpdates() {
+    if (!isBridgeConnected) return;
+    try {
+      const res = await fetch(`${BRIDGE_URL}/updates`, { mode: 'cors' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.updates && data.updates.length > 0) {
+          for (const u of data.updates) {
+            showToast(`💾 [${u.fileName}] AutoCAD'den otomatik güncellendi!`);
+            // Projeler tablosunda bağlı proje varsa güncelle
+            const p = projects.find(pr => (pr.notes && pr.notes.includes(u.draftId)) || pr.fileDwgName === u.fileName);
+            if (p) {
+              p.fileDwgData = u.fileUrl;
+              p.fileDwgSize = u.fileSize;
+            }
+          }
+          await loadDrafts();
+          if (typeof renderGrid === 'function') renderGrid();
+        }
+      }
+    } catch (e) {
+      // Bridge kapandıysa kontrol et
+      isBridgeConnected = false;
+      updateBridgeUI();
+    }
+  }
+
+  // Köprü periyodik kontrolü
+  setInterval(checkBridgeStatus, 4000);
+  setInterval(pollBridgeUpdates, 2000);
+  setTimeout(checkBridgeStatus, 500);
+
+  // AutoCAD ile Aç veya İndir
+  window.openOrDownloadDraft = async function (e, draftId, fileUrl, fileName) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    if (isBridgeConnected) {
+      showToast("AutoCAD açılıyor, lütfen bekleyin...");
+      try {
+        const res = await fetch(`${BRIDGE_URL}/open`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ draftId, fileName, fileUrl }),
+          mode: 'cors'
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast("📐 AutoCAD başlatıldı. Dosyada değişiklik yapıp kaydettiğinizde otomatik sisteme yüklenecektir.");
+          return;
+        } else {
+          showToast("AutoCAD başlatılamadı: " + (data.error || 'Bilinmeyen hata'), true);
+        }
+      } catch (err) {
+        console.warn("Bridge open failed, falling back to download:", err);
+        isBridgeConnected = false;
+        updateBridgeUI();
+      }
+    }
+
+    // Köprü bağlı değilse veya hata olduysa standart indirme yap
+    await downloadDraftFileCustom(e, fileUrl, fileName);
+    showToast("Dosya indirildi. AutoCAD ile düzenledikten sonra '🔄 DWG Güncelle' butonuyla veya sürükleyerek sisteme aktarabilirsiniz.");
+  };
+
+  // Tek tıkla DWG Güncelleme
+  window.triggerDirectDwgUpdate = function (draftId) {
+    const inp = $('inpDirectUpdateDwg');
+    if (inp) {
+      inp.dataset.draftId = draftId;
+      inp.value = '';
+      inp.click();
+    }
+  };
+
+  // Doğrudan DWG dosyasını yükleyip mevcut taslağı güncelleme fonksiyonu
+  window.updateDraftDwgFile = async function (draftId, file) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.dwg')) {
+      showToast("Lütfen sadece .dwg uzantılı bir AutoCAD dosyası seçin.", true);
+      return;
+    }
+
+    const d = drafts.find(x => x.id === draftId);
+    if (!d) {
+      showToast("Güncellenecek taslak bulunamadı.", true);
+      return;
+    }
+
+    showToast("Yeni DWG dosyası sisteme yükleniyor...");
+
+    try {
+      if (!useSupabase) throw new Error("Supabase bağlantısı aktif değil.");
+
+      const fileUrl = await uploadProjectFile({ fileRaw: file, name: file.name, size: file.size });
+
+      // Taslak detayları JSON ise dwg kısmını güncelle
+      let detailsJson = d.details ? JSON.stringify({
+        ...d.details,
+        dwg: { name: file.name, size: file.size, url: fileUrl }
+      }) : fileUrl;
+
+      // 1. draft_projects tablosunu güncelle
+      const { error } = await supabase.from('draft_projects').update({
+        file_name: file.name,
+        file_url: detailsJson,
+        file_size: file.size
+      }).eq('id', draftId);
+
+      if (error) throw error;
+
+      // 2. Bağlı proje varsa projects tablosundaki file_dwg alanlarını da güncelle
+      const linkedProject = projects.find(p => (p.notes && p.notes.includes(draftId)) || p.fileDwgName === d.fileName);
+      if (linkedProject) {
+        linkedProject.fileDwgData = fileUrl;
+        linkedProject.fileDwgName = file.name;
+        linkedProject.fileDwgSize = file.size;
+
+        await supabase.from('projects').update({
+          file_dwg_data: fileUrl,
+          file_dwg_name: file.name,
+          file_dwg_size: file.size
+        }).eq('id', linkedProject.id);
+
+        if (typeof renderGrid === 'function') renderGrid();
+      }
+
+      showToast(`✅ "${file.name}" taslağı başarıyla güncellendi!`);
+      await loadDrafts();
+    } catch (err) {
+      console.error("updateDraftDwgFile error:", err);
+      showToast("Taslak güncellenemedi: " + err.message, true);
+    }
+  };
+
+  // Gizli input dinleyicisi
+  const inpDirect = $('inpDirectUpdateDwg');
+  if (inpDirect) {
+    inpDirect.addEventListener('change', async (e) => {
+      const draftId = e.target.dataset.draftId;
+      const file = e.target.files && e.target.files[0];
+      if (draftId && file) {
+        await updateDraftDwgFile(draftId, file);
+      }
+    });
+  }
+
   window.downloadDraftFileCustom = async function (e, url, originalName) {
-    e.preventDefault();
-    e.stopPropagation();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     let customName = originalName.replace(/\.[^/.]+$/, "");
     customName = toTitleCase(customName) + ' Taslak.dwg';
     customName = customName.replace(/[\\/:*?"<>|]/g, '_');
@@ -2568,10 +2771,10 @@
               </div>
             `;
 
-            return `<tr>
+            return `<tr class="draft-row" data-id="${d.id}" title="Yeni DWG dosyasını bu satıra sürükleyip bırakarak güncelleyebilirsiniz">
                   <td>
-                    <a href="${d.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(d.fileUrl)}', '${esc(d.fileName)}')">
-                      📁 ${esc(d.fileName)} (${formatBytes(d.fileSize)})
+                    <a href="${d.fileUrl}" class="draft-file-badge" onclick="openOrDownloadDraft(event, '${d.id}', '${esc(d.fileUrl)}', '${esc(d.fileName)}')" title="AutoCAD ile açmak veya indirmek için tıklayın">
+                      📁 ${esc(d.fileName)} <span style="font-size:11px; opacity:0.8;">(${formatBytes(d.fileSize)})</span>
                     </a>
                   </td>
                   <td>${esc(d.uploadedBy)}</td>
@@ -2579,8 +2782,10 @@
                   <td style="text-align:center;">
                     ${checkboxHtml}
                   </td>
-                  <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
-                    <button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent);" onclick="sendDraftToForm('${d.id}')" title="Talebe Gönder">Talebe Gönder ➡️</button>
+                  <td style="text-align:center; display:flex; gap:4px; justify-content:center; align-items:center; flex-wrap:wrap;">
+                    <button class="btn-table-action btn-action-autocad" onclick="openOrDownloadDraft(event, '${d.id}', '${esc(d.fileUrl)}', '${esc(d.fileName)}')" title="AutoCAD ile Aç">📐 AutoCAD</button>
+                    <button class="btn-table-action btn-action-update" onclick="triggerDirectDwgUpdate('${d.id}')" title="Yeni DWG Dosyası Yükle">🔄 Güncelle</button>
+                    <button class="btn-submit" style="padding: 5px 8px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent);" onclick="sendDraftToForm('${d.id}')" title="Talebe Gönder">Talebe Gönder ➡️</button>
                     <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
                   </td>
                 </tr>`;
@@ -2633,10 +2838,10 @@
               needsRerender = true;
             }
 
-            return `<tr>
+            return `<tr class="draft-row" data-id="${d.id}" title="Yeni DWG dosyasını bu satıra sürükleyip bırakarak güncelleyebilirsiniz">
                   <td>
-                    <a href="${d.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(d.fileUrl)}', '${esc(d.fileName)}')">
-                      📁 ${esc(d.fileName)} (${formatBytes(d.fileSize)})
+                    <a href="${d.fileUrl}" class="draft-file-badge" onclick="openOrDownloadDraft(event, '${d.id}', '${esc(d.fileUrl)}', '${esc(d.fileName)}')" title="AutoCAD ile açmak veya indirmek için tıklayın">
+                      📁 ${esc(d.fileName)} <span style="font-size:11px; opacity:0.8;">(${formatBytes(d.fileSize)})</span>
                     </a>
                   </td>
                   <td>${esc(d.uploadedBy)}</td>
@@ -2644,10 +2849,12 @@
                   <td style="text-align:center;">
                     ${badgesHtml.join('')}
                   </td>
-                  <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
+                  <td style="text-align:center; display:flex; gap:4px; justify-content:center; align-items:center; flex-wrap:wrap;">
+                    <button class="btn-table-action btn-action-autocad" onclick="openOrDownloadDraft(event, '${d.id}', '${esc(d.fileUrl)}', '${esc(d.fileName)}')" title="AutoCAD ile Aç">📐 AutoCAD</button>
+                    <button class="btn-table-action btn-action-update" onclick="triggerDirectDwgUpdate('${d.id}')" title="Yeni DWG Dosyası Yükle">🔄 Güncelle</button>
                     ${linkedProject ?
-                      `<button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:#3498db;" onclick="startEditProject('${linkedProject.id}', '${d.id}')" title="Taslağı Düzenle">Taslağı Düzenle 📝</button>` :
-                      `<button class="btn-submit" style="padding: 5px 10px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent-dark);" onclick="sendDraftToForm('${d.id}')" title="Yeni Talep Formuna Git">Taslağı Düzenle 📝</button>`
+                      `<button class="btn-submit" style="padding: 5px 8px; font-size: 11px; margin:0; width:auto; height:auto; background:#3498db;" onclick="startEditProject('${linkedProject.id}', '${d.id}')" title="Taslağı Düzenle">Taslağı Düzenle 📝</button>` :
+                      `<button class="btn-submit" style="padding: 5px 8px; font-size: 11px; margin:0; width:auto; height:auto; background:var(--accent-dark);" onclick="sendDraftToForm('${d.id}')" title="Yeni Talep Formuna Git">Taslağı Düzenle 📝</button>`
                     }
                     <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
                   </td>
@@ -2673,10 +2880,10 @@
           if (d.takimRequested) tales.push('TAKIM');
           if (d.sayimRequested) tales.push('SAYIM');
 
-          return `<tr>
+          return `<tr class="draft-row" data-id="${d.id}" title="Yeni DWG dosyasını bu satıra sürükleyip bırakarak güncelleyebilirsiniz">
                 <td>
-                  <a href="${d.fileUrl}" style="color:#1a73e8; font-weight:700; text-decoration:none;" onclick="downloadDraftFileCustom(event, '${esc(d.fileUrl)}', '${esc(d.fileName)}')">
-                    📁 ${esc(d.fileName)} (${formatBytes(d.fileSize)})
+                  <a href="${d.fileUrl}" class="draft-file-badge" onclick="openOrDownloadDraft(event, '${d.id}', '${esc(d.fileUrl)}', '${esc(d.fileName)}')" title="AutoCAD ile açmak veya indirmek için tıklayın">
+                    📁 ${esc(d.fileName)} <span style="font-size:11px; opacity:0.8;">(${formatBytes(d.fileSize)})</span>
                   </a>
                 </td>
                 <td>${esc(d.uploadedBy)}</td>
@@ -2684,8 +2891,10 @@
                 <td style="text-align:center;">
                   ${tales.map(t => `<span style="display:inline-block; font-size:10px; background:var(--success); color:#fff; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:4px;">${t}</span>`).join('')}
                 </td>
-                <td style="text-align:center; display:flex; gap:6px; justify-content:center; align-items:center;">
-                  <span style="display:inline-block; font-size:11px; background:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9; padding:4px 8px; border-radius:4px; font-weight:bold;">TAMAMLANDI ✓</span>
+                <td style="text-align:center; display:flex; gap:4px; justify-content:center; align-items:center; flex-wrap:wrap;">
+                  <button class="btn-table-action btn-action-autocad" onclick="openOrDownloadDraft(event, '${d.id}', '${esc(d.fileUrl)}', '${esc(d.fileName)}')" title="AutoCAD ile Aç">📐 AutoCAD</button>
+                  <button class="btn-table-action btn-action-update" onclick="triggerDirectDwgUpdate('${d.id}')" title="Yeni DWG Dosyası Yükle">🔄 Güncelle</button>
+                  <span style="display:inline-block; font-size:11px; background:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9; padding:4px 6px; border-radius:4px; font-weight:bold;">TAMAMLANDI ✓</span>
                   <button class="personnel-del" style="float:none;" onclick="deleteDraftProject('${d.id}')" title="Taslağı Sil">✕</button>
                 </td>
               </tr>`;
@@ -2700,6 +2909,33 @@
         const field = e.target.dataset.field;
         const value = e.target.checked;
         await updateDraftStatus(id, field, value);
+      });
+    });
+
+    // Attach drag & drop listeners to each draft row
+    document.querySelectorAll('.drafts-table tr.draft-row').forEach(row => {
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        row.classList.add('row-drag-over');
+      });
+      row.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        row.classList.remove('row-drag-over');
+      });
+      row.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        row.classList.remove('row-drag-over');
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+          const file = files[0];
+          const draftId = row.dataset.id;
+          if (draftId && file) {
+            await updateDraftDwgFile(draftId, file);
+          }
+        }
       });
     });
   }
