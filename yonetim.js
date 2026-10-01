@@ -26,6 +26,10 @@
   let users = [];
   let crmStartCode = '26-00370';
   let monthlyChartInstance = null;
+  let personnelChartInstance = null;
+  let personnelDetailChartInstance = null;
+  let selectedPersonnelStatsFilter = '__all__';
+  let draftProjectsList = [];
   let fabrikaOrders = [];
   const STORAGE_KEY_FABRIKA = 'mimari-fabrika-talepleri';
 
@@ -105,9 +109,25 @@
     await loadUsers();
     await loadCrmStartCode();
     await loadFabrikaOrders();
+    await loadDraftProjects();
     
     parseProjectsExtra();
     renderAll();
+  }
+
+  async function loadDraftProjects() {
+    if (useSupabase) {
+      try {
+        const { data, error } = await supabase.from('draft_projects').select('*');
+        if (error) throw error;
+        draftProjectsList = data || [];
+      } catch (e) {
+        console.error("Yonetim loadDraftProjects error:", e);
+        draftProjectsList = [];
+      }
+    } else {
+      draftProjectsList = [];
+    }
   }
 
   async function loadProjects() {
@@ -461,100 +481,452 @@
     return await setStorageItem('personel-listesi', JSON.stringify(personnelList));
   }
 
-  function renderPersonnelPanel() {
-    const list = $('personnelList');
-    if (!list) return;
-    if (personnelList.length === 0) {
-      list.innerHTML = `<div class="empty-state"><div class="big">Henüz personel eklenmemiş</div>Yukarıdaki alandan ilk personeli ekleyerek başlayın.</div>`;
-      return;
-    }
-    const sorted = [...personnelList].sort((a, b) => a.localeCompare(b, 'tr'));
-    list.innerHTML = sorted.map(name => {
-      const job = projectsList.find(p => p.employee === name && (p.status || 'Bekliyor') === 'Bekliyor');
-      const tag = job ? `<span class="personnel-busy-tag">AKTİF İŞ: ${esc(job.crm_code)}</span>` : '';
-      const delBtn = `<button class="personnel-del" onclick="removePersonnel('${esc(name)}')" title="Personeli sil">✕</button>`;
-      return `<div class="personnel-item">
-        <span class="personnel-name">${esc(name)}</span>
-        ${tag}
-        ${delBtn}
-      </div>`;
-    }).join('');
-  }
-
-  window.removePersonnel = async function(name) {
-    const job = projectsList.find(p => p.employee === name && (p.status || 'Bekliyor') === 'Bekliyor');
-    const msg = job
-      ? `"${name}" adlı personelin şu anda bekleyen bir işi var (CRM: ${job.crm_code}). Yine de listeden silmek istiyor musunuz?`
-      : `"${name}" adlı personeli listeden silmek istediğinize emin misiniz?`;
-    if (!confirm(msg)) return;
-
-    if (useSupabase) {
-      try {
-        const { error } = await supabase.from('personnel').delete().eq('name', name);
-        if (error) throw error;
-      } catch (e) {
-        showToast('Personel silinemedi: ' + e.message, true);
-        return;
-      }
-    }
-    personnelList = personnelList.filter(p => p !== name);
-    renderPersonnelPanel();
-    await savePersonnel();
-    showToast('Personel silindi: ' + name);
-  };
-
-  async function handleAddPersonnel() {
-    const val = $('inpNewPersonnel').value.trim();
-    if (!val) {
-      showToast('Personel adı boş olamaz.', true);
-      return;
-    }
-    if (personnelList.some(p => p.toLowerCase() === val.toLowerCase())) {
-      showToast('Bu personel zaten listede mevcut.', true);
-      return;
-    }
-    if (useSupabase) {
-      try {
-        const { error } = await supabase.from('personnel').insert({ name: val });
-        if (error) throw error;
-      } catch (e) {
-        showToast('Personel eklenemedi: ' + e.message, true);
-        return;
-      }
-    }
-    personnelList.push(val);
-    $('inpNewPersonnel').value = '';
-    renderPersonnelPanel();
-    await savePersonnel();
-    showToast('Personel eklendi: ' + val);
-  }
-
   // --- STATS RENDERING ---
-  function renderStats() {
-    const totalProjects = projectsList.length;
-    const pendingProjects = projectsList.filter(p => (p.status || 'Bekliyor') === 'Bekliyor').length;
-    const completedProjects = totalProjects - pendingProjects;
-    const activePersonnel = personnelList.length;
+  function normName(s) {
+    return (s || '').trim().toLocaleLowerCase('tr-TR');
+  }
 
-    $('statsCardsContainer').innerHTML = `
-      <div class="stat-card">
-        <h4>Toplam Proje</h4>
-        <div class="val">${totalProjects}</div>
+  function resolvePersonnelName(raw) {
+    if (!raw) return '';
+    const trimmed = String(raw).trim();
+    if (!trimmed || trimmed === '—' || trimmed === '-' || trimmed.toLowerCase() === 'null') return '';
+    const lower = normName(trimmed);
+
+    // Direct match against personnelList
+    for (const p of personnelList) {
+      if (normName(p) === lower) return p.trim();
+    }
+
+    // Match against users (username or personnelName)
+    for (const u of users) {
+      const uUser = normName(u.username);
+      const uPers = normName(u.personnelName);
+      if (lower === uUser || lower === uPers) {
+        return (u.personnelName || u.username).trim();
+      }
+    }
+
+    // Partial contains in personnelList
+    for (const p of personnelList) {
+      const pLower = normName(p);
+      if (pLower.includes(lower) || lower.includes(pLower)) {
+        return p.trim();
+      }
+    }
+
+    return trimmed;
+  }
+
+  function getPersonnelStatsList() {
+    const map = new Map();
+
+    const getOrCreate = (name) => {
+      const key = normName(name);
+      if (!map.has(key)) {
+        map.set(key, {
+          name: name,
+          projeCount: 0,
+          taslakCount: 0,
+          projeBekliyor: 0,
+          projeYapildi: 0,
+          total: 0
+        });
+      }
+      return map.get(key);
+    };
+
+    // 1. Personnel list
+    personnelList.forEach(p => {
+      const name = resolvePersonnelName(p);
+      if (name) getOrCreate(name);
+    });
+
+    // 2. Users list
+    users.forEach(u => {
+      const pName = resolvePersonnelName(u.personnelName || u.username);
+      if (pName) getOrCreate(pName);
+    });
+
+    // 3. Projects from projectsList
+    projectsList.forEach(p => {
+      if (!p.employee) return;
+      const name = resolvePersonnelName(p.employee);
+      if (!name) return;
+      const item = getOrCreate(name);
+      item.projeCount++;
+      if ((p.status || 'Bekliyor') === 'Yapıldı') {
+        item.projeYapildi++;
+      } else {
+        item.projeBekliyor++;
+      }
+      item.total++;
+    });
+
+    // 4. Drafts from draftProjectsList
+    draftProjectsList.forEach(d => {
+      const author = d.uploaded_by || d.uploadedBy;
+      if (!author) return;
+      const name = resolvePersonnelName(author);
+      if (!name) return;
+      const item = getOrCreate(name);
+      item.taslakCount++;
+      item.total++;
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.total !== a.total) return b.total - a.total;
+      return a.name.localeCompare(b.name, 'tr-TR');
+    });
+  }
+
+  function renderPersonnelStatsFilter(allStats) {
+    const sel = $('selPersonnelStatsFilter');
+    if (!sel) return;
+
+    const currentVal = selectedPersonnelStatsFilter;
+    let html = `<option value="__all__">📊 Tüm Personeller (Karşılaştırma Görünümü)</option>`;
+    allStats.forEach(item => {
+      const isSelected = item.name === currentVal ? 'selected' : '';
+      html += `<option value="${esc(item.name)}" ${isSelected}>${esc(item.name)} (${item.projeCount} Proje, ${item.taslakCount} Taslak)</option>`;
+    });
+    sel.innerHTML = html;
+    sel.value = currentVal;
+    if (sel.value !== currentVal) {
+      sel.value = '__all__';
+      selectedPersonnelStatsFilter = '__all__';
+    }
+  }
+
+  function renderPersonnelKpiCards(allStats, selectedPersonName) {
+    const container = $('personnelKpiContainer');
+    if (!container) return;
+
+    let projeCount = 0;
+    let taslakCount = 0;
+    let totalCount = 0;
+    let bekleyenCount = 0;
+    let yapildiCount = 0;
+
+    if (selectedPersonName && selectedPersonName !== '__all__') {
+      const found = allStats.find(x => normName(x.name) === normName(selectedPersonName));
+      if (found) {
+        projeCount = found.projeCount;
+        taslakCount = found.taslakCount;
+        totalCount = found.total;
+        bekleyenCount = found.projeBekliyor;
+        yapildiCount = found.projeYapildi;
+      }
+    } else {
+      allStats.forEach(x => {
+        projeCount += x.projeCount;
+        taslakCount += x.taslakCount;
+        totalCount += x.total;
+        bekleyenCount += x.projeBekliyor;
+        yapildiCount += x.projeYapildi;
+      });
+    }
+
+    const taslakRatio = totalCount > 0 ? Math.round((taslakCount / totalCount) * 100) : 0;
+    const projeRatio = totalCount > 0 ? Math.round((projeCount / totalCount) * 100) : 0;
+
+    container.innerHTML = `
+      <div class="kpi-card kpi-proje">
+        <div class="kpi-head">
+          <span class="kpi-label">Çizilen Proje</span>
+          <span class="kpi-icon">📐</span>
+        </div>
+        <div class="kpi-val" style="color:#2563eb;">${projeCount}</div>
+        <div class="kpi-sub">Kayıtlı mimari projeler (${projeRatio}% pay)</div>
       </div>
-      <div class="stat-card">
-        <h4>Bekleyen</h4>
-        <div class="val" style="color:var(--secondary);">${pendingProjects}</div>
+
+      <div class="kpi-card kpi-taslak">
+        <div class="kpi-head">
+          <span class="kpi-label">Çizilen Taslak</span>
+          <span class="kpi-icon">📝</span>
+        </div>
+        <div class="kpi-val" style="color:#f59e0b;">${taslakCount}</div>
+        <div class="kpi-sub">Sisteme yüklenen taslaklar (${taslakRatio}% pay)</div>
       </div>
-      <div class="stat-card">
-        <h4>Tamamlanan</h4>
-        <div class="val" style="color:#2ecc71;">${completedProjects}</div>
+
+      <div class="kpi-card kpi-total">
+        <div class="kpi-head">
+          <span class="kpi-label">Toplam Çizim</span>
+          <span class="kpi-icon">📊</span>
+        </div>
+        <div class="kpi-val" style="color:#10b981;">${totalCount}</div>
+        <div class="kpi-sub">Üretilen proje ve taslak toplamı</div>
       </div>
-      <div class="stat-card">
-        <h4>Aktif Personel</h4>
-        <div class="val">${activePersonnel}</div>
+
+      <div class="kpi-card kpi-pending">
+        <div class="kpi-head">
+          <span class="kpi-label">Bekleyen Projeler</span>
+          <span class="kpi-icon">⏳</span>
+        </div>
+        <div class="kpi-val" style="color:#ef4444;">${bekleyenCount}</div>
+        <div class="kpi-sub">Çizim veya revizyon aşamasında</div>
+      </div>
+
+      <div class="kpi-card kpi-done">
+        <div class="kpi-head">
+          <span class="kpi-label">Tamamlanan Projeler</span>
+          <span class="kpi-icon">✅</span>
+        </div>
+        <div class="kpi-val" style="color:#059669;">${yapildiCount}</div>
+        <div class="kpi-sub">Çizimi tamamlanmış projeler</div>
       </div>
     `;
+  }
 
+  function renderPersonnelCharts(allStats, selectedPersonName) {
+    const canvasMain = document.getElementById('personnelChart');
+    if (!canvasMain) return;
+    const ctxMain = canvasMain.getContext('2d');
+
+    if (personnelChartInstance) {
+      personnelChartInstance.destroy();
+      personnelChartInstance = null;
+    }
+
+    const isAll = !selectedPersonName || selectedPersonName === '__all__';
+
+    const labels = allStats.map(s => s.name);
+    const projeData = allStats.map(s => s.projeCount);
+    const taslakData = allStats.map(s => s.taslakCount);
+
+    const projeBg = allStats.map(s => {
+      if (isAll) return 'rgba(37, 99, 235, 0.85)';
+      return normName(s.name) === normName(selectedPersonName) ? 'rgba(37, 99, 235, 1)' : 'rgba(37, 99, 235, 0.2)';
+    });
+    const projeBorder = allStats.map(s => {
+      if (isAll) return '#1d4ed8';
+      return normName(s.name) === normName(selectedPersonName) ? '#1d4ed8' : 'rgba(29, 78, 216, 0.3)';
+    });
+
+    const taslakBg = allStats.map(s => {
+      if (isAll) return 'rgba(245, 158, 11, 0.85)';
+      return normName(s.name) === normName(selectedPersonName) ? 'rgba(245, 158, 11, 1)' : 'rgba(245, 158, 11, 0.2)';
+    });
+    const taslakBorder = allStats.map(s => {
+      if (isAll) return '#d97706';
+      return normName(s.name) === normName(selectedPersonName) ? '#d97706' : 'rgba(217, 119, 6, 0.3)';
+    });
+
+    personnelChartInstance = new Chart(ctxMain, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Çizilen Proje',
+            data: projeData,
+            backgroundColor: projeBg,
+            borderColor: projeBorder,
+            borderWidth: 1.5,
+            borderRadius: 6
+          },
+          {
+            label: 'Çizilen Taslak',
+            data: taslakData,
+            backgroundColor: taslakBg,
+            borderColor: taslakBorder,
+            borderWidth: 1.5,
+            borderRadius: 6
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              font: { family: 'Roboto', size: 12, weight: '500' },
+              color: '#32373c'
+            }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1,
+              font: { family: 'JetBrains Mono', size: 11 },
+              color: '#6c757d'
+            },
+            grid: {
+              color: '#f1f5f9'
+            }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+            titleFont: { family: 'Montserrat', size: 13, weight: 'bold' },
+            bodyFont: { family: 'Roboto', size: 12 },
+            padding: 12,
+            cornerRadius: 8,
+            callbacks: {
+              afterBody: function(items) {
+                const idx = items[0].dataIndex;
+                const total = (projeData[idx] || 0) + (taslakData[idx] || 0);
+                return `\nToplam Çizim: ${total} adet`;
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Secondary Doughnut Chart (Breakdown)
+    const canvasDetail = document.getElementById('personnelDetailChart');
+    if (!canvasDetail) return;
+    const ctxDetail = canvasDetail.getContext('2d');
+
+    if (personnelDetailChartInstance) {
+      personnelDetailChartInstance.destroy();
+      personnelDetailChartInstance = null;
+    }
+
+    let detailProje = 0;
+    let detailTaslak = 0;
+    let detailTitle = "Tüm Ekip Çizim Dağılımı";
+    let detailSub = "Genel proje ve taslak payı";
+
+    if (!isAll) {
+      const found = allStats.find(x => normName(x.name) === normName(selectedPersonName));
+      if (found) {
+        detailProje = found.projeCount;
+        detailTaslak = found.taslakCount;
+        detailTitle = `${found.name} Çizim Dağılımı`;
+        detailSub = `${found.total} toplam çizimin oransal dağılımı`;
+      }
+    } else {
+      allStats.forEach(x => {
+        detailProje += x.projeCount;
+        detailTaslak += x.taslakCount;
+      });
+    }
+
+    if ($('personnelDetailChartTitle')) $('personnelDetailChartTitle').textContent = detailTitle;
+    if ($('personnelDetailChartSub')) $('personnelDetailChartSub').textContent = detailSub;
+
+    const hasData = (detailProje + detailTaslak) > 0;
+
+    personnelDetailChartInstance = new Chart(ctxDetail, {
+      type: 'doughnut',
+      data: {
+        labels: hasData ? ['Çizilen Proje', 'Çizilen Taslak'] : ['Veri Yok'],
+        datasets: [{
+          data: hasData ? [detailProje, detailTaslak] : [1],
+          backgroundColor: hasData ? ['#2563eb', '#f59e0b'] : ['#e2e8f0'],
+          borderColor: '#ffffff',
+          borderWidth: 3,
+          hoverOffset: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              font: { family: 'Roboto', size: 12, weight: '600' },
+              padding: 14
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(item) {
+                if (!hasData) return ' Henüz çizim verisi yok';
+                const total = detailProje + detailTaslak;
+                const val = item.raw || 0;
+                const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                return ` ${item.label}: ${val} adet (%${pct})`;
+              }
+            }
+          }
+        },
+        cutout: '65%'
+      }
+    });
+  }
+
+  function renderPersonnelTable(allStats, selectedPersonName) {
+    const tbody = $('tblPersonnelStatsBody');
+    if (!tbody) return;
+
+    if ($('lblTotalPersonnelCount')) {
+      $('lblTotalPersonnelCount').textContent = allStats.length;
+    }
+
+    const myName = currentUser ? resolvePersonnelName(currentUser.personnelName || currentUser.username) : '';
+
+    if (allStats.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--ink-soft);">Personel bulunamadı.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = allStats.map(s => {
+      const isMe = myName && normName(s.name) === normName(myName);
+      const isSelected = selectedPersonName && normName(s.name) === normName(selectedPersonName);
+      const rowClass = isSelected ? 'row-highlighted' : '';
+      const meBadge = isMe ? `<span style="background:var(--ink); color:#fff; font-size:10px; padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:700;">SİZ</span>` : '';
+
+      return `
+        <tr class="${rowClass}">
+          <td style="padding:12px 14px; font-weight:600; color:var(--ink);">
+            ${esc(s.name)} ${meBadge}
+          </td>
+          <td style="padding:12px 14px; text-align:center;">
+            <span class="badge-count-proje">${s.projeCount} Proje</span>
+          </td>
+          <td style="padding:12px 14px; text-align:center;">
+            <span class="badge-count-taslak">${s.taslakCount} Taslak</span>
+          </td>
+          <td style="padding:12px 14px; text-align:center;">
+            <span class="badge-count-total">${s.total} Çizim</span>
+          </td>
+          <td style="padding:12px 14px; text-align:center; font-size:12px;">
+            <span style="color:#ef4444; font-weight:600;">${s.projeBekliyor} Bekleyen</span> · 
+            <span style="color:#059669; font-weight:600;">${s.projeYapildi} Tamamlanan</span>
+          </td>
+          <td style="padding:12px 14px; text-align:center;">
+            <button type="button" class="btn-table-examine" data-examine="${esc(s.name)}">
+              🔍 İncele
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    tbody.querySelectorAll('[data-examine]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const pName = btn.getAttribute('data-examine');
+        const sel = $('selPersonnelStatsFilter');
+        if (sel) {
+          sel.value = pName;
+          selectedPersonnelStatsFilter = pName;
+          updatePersonnelStatsView();
+          $('panel-stats').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  }
+
+  function updatePersonnelStatsView() {
+    const allStats = getPersonnelStatsList();
+    renderPersonnelStatsFilter(allStats);
+    renderPersonnelKpiCards(allStats, selectedPersonnelStatsFilter);
+    renderPersonnelCharts(allStats, selectedPersonnelStatsFilter);
+    renderPersonnelTable(allStats, selectedPersonnelStatsFilter);
+  }
+
+  function renderMonthlyChart() {
     const monthlyData = {};
     projectsList.forEach(p => {
       if (!p.date) return;
@@ -574,6 +946,7 @@
 
     if (monthlyChartInstance) {
       monthlyChartInstance.destroy();
+      monthlyChartInstance = null;
     }
 
     monthlyChartInstance = new Chart(ctx, {
@@ -583,7 +956,7 @@
         datasets: [{
           label: 'Aylık Eklenen Projeler',
           data: dataValues,
-          backgroundColor: 'rgba(207, 46, 46, 0.8)',
+          backgroundColor: 'rgba(207, 46, 46, 0.85)',
           borderColor: 'rgba(207, 46, 46, 1)',
           borderWidth: 1,
           borderRadius: 4
@@ -603,6 +976,91 @@
         }
       }
     });
+  }
+
+  function renderStats() {
+    const allStats = getPersonnelStatsList();
+
+    // 1. User Banner
+    const myName = currentUser ? resolvePersonnelName(currentUser.personnelName || currentUser.username) : '';
+    const bannerContainer = $('statsUserBannerContainer');
+    const btnFocusMe = $('btnFocusMyStats');
+
+    if (bannerContainer) {
+      if (myName) {
+        const myItem = allStats.find(x => normName(x.name) === normName(myName)) || { projeCount: 0, taslakCount: 0, total: 0 };
+        bannerContainer.innerHTML = `
+          <div class="stats-user-banner">
+            <div>
+              <h4>👋 Hoş Geldiniz, ${esc(myName)}</h4>
+              <p>Kendi çizimleriniz: <b>${myItem.projeCount}</b> Proje, <b>${myItem.taslakCount}</b> Taslak (Toplam: <b>${myItem.total}</b> çizim)</p>
+            </div>
+            <div>
+              <button type="button" class="btn-focus-me" id="btnBannerFocusMe">📊 Çizimlerime Odaklan</button>
+            </div>
+          </div>
+        `;
+        if ($('btnBannerFocusMe')) {
+          $('btnBannerFocusMe').addEventListener('click', () => {
+            selectedPersonnelStatsFilter = myName;
+            updatePersonnelStatsView();
+          });
+        }
+        if (btnFocusMe) {
+          btnFocusMe.classList.remove('hidden');
+          btnFocusMe.onclick = () => {
+            selectedPersonnelStatsFilter = myName;
+            updatePersonnelStatsView();
+          };
+        }
+      } else {
+        bannerContainer.innerHTML = '';
+        if (btnFocusMe) btnFocusMe.classList.add('hidden');
+      }
+    }
+
+    // 2. Personnel filter listener
+    const filterSelect = $('selPersonnelStatsFilter');
+    if (filterSelect && !filterSelect._hasChangeListener) {
+      filterSelect.addEventListener('change', (e) => {
+        selectedPersonnelStatsFilter = e.target.value;
+        updatePersonnelStatsView();
+      });
+      filterSelect._hasChangeListener = true;
+    }
+
+    // 3. Render Personnel Stats (KPIs, Charts, Table)
+    updatePersonnelStatsView();
+
+    // 4. General Cards
+    const totalProjects = projectsList.length;
+    const pendingProjects = projectsList.filter(p => (p.status || 'Bekliyor') === 'Bekliyor').length;
+    const completedProjects = totalProjects - pendingProjects;
+    const activePersonnel = personnelList.length;
+
+    if ($('statsCardsContainer')) {
+      $('statsCardsContainer').innerHTML = `
+        <div class="stat-card">
+          <h4>Toplam Proje</h4>
+          <div class="val">${totalProjects}</div>
+        </div>
+        <div class="stat-card">
+          <h4>Bekleyen</h4>
+          <div class="val" style="color:var(--secondary);">${pendingProjects}</div>
+        </div>
+        <div class="stat-card">
+          <h4>Tamamlanan</h4>
+          <div class="val" style="color:#2ecc71;">${completedProjects}</div>
+        </div>
+        <div class="stat-card">
+          <h4>Aktif Personel</h4>
+          <div class="val">${activePersonnel}</div>
+        </div>
+      `;
+    }
+
+    // 5. Monthly chart
+    renderMonthlyChart();
   }
 
   // --- ADMIN & USERS MANAGEMENT ---
@@ -775,7 +1233,6 @@
     $('inpAdminNewPass').value = '';
     $('inpAdminNewPersonnelName').value = '';
     renderUsersPanel();
-    renderPersonnelPanel();
     await saveUsers();
     showToast('Kullanıcı başarıyla oluşturuldu: ' + uName);
   }
@@ -1191,7 +1648,6 @@
     if ($('panel-projects-pending')) $('panel-projects-pending').classList.toggle('hidden', tabName !== 'projects-pending');
     if ($('panel-purchase-pending')) $('panel-purchase-pending').classList.toggle('hidden', tabName !== 'purchase-pending');
     if ($('panel-fabrika-management')) $('panel-fabrika-management').classList.toggle('hidden', tabName !== 'fabrika-management');
-    if ($('panel-personnel')) $('panel-personnel').classList.toggle('hidden', tabName !== 'personnel');
     if ($('panel-stats')) $('panel-stats').classList.toggle('hidden', tabName !== 'stats');
     if ($('panel-admin')) $('panel-admin').classList.toggle('hidden', tabName !== 'admin');
     
@@ -1207,7 +1663,6 @@
   $('btnYonetimLogout').addEventListener('click', handleLogout);
   $('btnGoToBoard').addEventListener('click', () => { window.location.href = 'index.html'; });
   $('btnGoToAccounting').addEventListener('click', () => { window.location.href = 'muhasebe.html'; });
-  if ($('btnAddPersonnel')) $('btnAddPersonnel').addEventListener('click', handleAddPersonnel);
   if ($('btnAdminSaveSettings')) $('btnAdminSaveSettings').addEventListener('click', handleSaveSettings);
   if ($('btnAdminAddUser')) $('btnAdminAddUser').addEventListener('click', addAdminUser);
   if ($('btnSendExcelToFabrika')) $('btnSendExcelToFabrika').addEventListener('click', handleSendExcelToFabrika);

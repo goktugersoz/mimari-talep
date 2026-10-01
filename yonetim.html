@@ -107,13 +107,103 @@
 
     <!-- 4. STATS PANEL -->
     <div class="panel hidden" id="panel-stats">
-      <h3 style="font-family:'Montserrat',sans-serif; margin-top:0;">Genel Durum</h3>
-      <div class="stats-grid" id="statsCardsContainer" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:25px;">
-        <!-- Kartlar JS ile doldurulacak -->
+      <!-- Başlık ve Personel Filtresi -->
+      <div class="stats-header-bar">
+        <div>
+          <span class="brand-eyebrow" style="color:var(--accent-dark);">YÖNETİM ANALİZİ · ÇİZİM PERFORMANSI</span>
+          <h2 style="font-family:'Montserrat',sans-serif; margin:2px 0 6px 0; font-size:22px; font-weight:700;">Personel Çizim İstatistikleri</h2>
+          <p style="margin:0; font-size:13px; color:var(--ink-soft);">Ekipteki personellerin çizdiği proje ve taslak sayıları ile performans analizi</p>
+        </div>
+        <div class="stats-filter-controls">
+          <label for="selPersonnelStatsFilter" style="font-size:12px; font-weight:600; color:var(--ink-soft);">Personel Seç:</label>
+          <select id="selPersonnelStatsFilter" class="stats-select">
+            <option value="__all__">📊 Tüm Personeller (Karşılaştırma Görünümü)</option>
+          </select>
+          <button type="button" id="btnFocusMyStats" class="btn-focus-me hidden" title="Kendi istatistiklerime odaklan">👤 Kendi Çizimlerim</button>
+        </div>
       </div>
-      <h3 style="font-family:'Montserrat',sans-serif; margin-top:30px;">Aylık Proje Yoğunluğu</h3>
-      <div class="chart-container" style="position:relative; height:300px; width:100%;">
-        <canvas id="monthlyChart"></canvas>
+
+      <!-- Giriş Yapan Yöneticiye Özel Karşılama ve Kişisel Özet Kartı -->
+      <div id="statsUserBannerContainer"></div>
+
+      <!-- Kişisel / Seçili Personel KPI Kartları -->
+      <div id="personnelKpiSection" style="margin-bottom:20px;">
+        <div class="stats-kpi-grid" id="personnelKpiContainer">
+          <!-- JS ile doldurulacak -->
+        </div>
+      </div>
+
+      <!-- Çizim İstatistikleri Grafikleri (Ana Çubuk Grafik + Detay Dağılım Grafiği) -->
+      <div class="stats-charts-row">
+        <div class="stats-chart-card main-chart-card">
+          <div class="chart-card-head">
+            <div>
+              <h3 style="font-family:'Montserrat',sans-serif; margin:0; font-size:16px;" id="personnelChartTitle">Kişi Bazlı Çizim Dağılımı (Proje vs Taslak)</h3>
+              <p style="margin:3px 0 0 0; font-size:12px; color:var(--ink-soft);">Her personelin çizdiği proje ve taslak adetleri</p>
+            </div>
+            <div class="chart-legend-badges">
+              <span class="legend-badge badge-proje">● Çizilen Proje</span>
+              <span class="legend-badge badge-taslak">● Çizilen Taslak</span>
+            </div>
+          </div>
+          <div style="height:360px; position:relative;">
+            <canvas id="personnelChart"></canvas>
+          </div>
+        </div>
+
+        <div class="stats-chart-card secondary-chart-card" id="personnelDoughnutCard">
+          <div class="chart-card-head">
+            <div>
+              <h3 style="font-family:'Montserrat',sans-serif; margin:0; font-size:16px;" id="personnelDetailChartTitle">Çizim Oranı Dağılımı</h3>
+              <p style="margin:3px 0 0 0; font-size:12px; color:var(--ink-soft);" id="personnelDetailChartSub">Proje ve Taslak oranı</p>
+            </div>
+          </div>
+          <div style="height:360px; position:relative; display:flex; align-items:center; justify-content:center;">
+            <canvas id="personnelDetailChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detaylı Personel Performans Tablosu -->
+      <div style="margin-top:28px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <h3 style="font-family:'Montserrat',sans-serif; margin:0; font-size:17px;">Personel Performans ve Çizim Dökümü</h3>
+            <p style="margin:2px 0 0 0; font-size:12px; color:var(--ink-soft);">Personellere göre çizilen proje, taslak ve toplam çizim sayıları</p>
+          </div>
+          <div style="font-size:12px; color:var(--ink-soft);">
+            Toplam <b id="lblTotalPersonnelCount" style="color:var(--ink); font-family:'JetBrains Mono',monospace;">0</b> personel listeleniyor
+          </div>
+        </div>
+        <div class="table-responsive" style="overflow-x:auto; background:#fff; border-radius:10px; border:1px solid var(--line); box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+          <table class="drafts-table" style="width:100%; border-collapse:collapse; min-width:720px;" id="tblPersonnelStats">
+            <thead>
+              <tr style="background:var(--paper); border-bottom:2px solid var(--line); text-align:left;">
+                <th style="padding:12px 14px; font-weight:600;">Personel Adı</th>
+                <th style="padding:12px 14px; font-weight:600; text-align:center;">Çizilen Proje</th>
+                <th style="padding:12px 14px; font-weight:600; text-align:center;">Çizilen Taslak</th>
+                <th style="padding:12px 14px; font-weight:600; text-align:center;">Toplam Çizim</th>
+                <th style="padding:12px 14px; font-weight:600; text-align:center;">Proje Durumları</th>
+                <th style="padding:12px 14px; font-weight:600; text-align:center; width:130px;">Grafikte İncele</th>
+              </tr>
+            </thead>
+            <tbody id="tblPersonnelStatsBody">
+              <!-- JS ile doldurulacak -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Genel Sistem Durumu & Aylık Yoğunluk -->
+      <div style="margin-top:35px; padding-top:25px; border-top:2px dashed var(--line);">
+        <h3 style="font-family:'Montserrat',sans-serif; margin-top:0; font-size:17px;">Genel Proje Durumu</h3>
+        <div class="stats-grid" id="statsCardsContainer" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-top:12px;">
+          <!-- Kartlar JS ile doldurulacak -->
+        </div>
+        <h3 style="font-family:'Montserrat',sans-serif; margin-top:25px; font-size:16px;">Aylık Proje Yoğunluğu</h3>
+        <div class="chart-container" style="position:relative; height:300px; width:100%; margin-top:12px;">
+          <canvas id="monthlyChart"></canvas>
+        </div>
       </div>
     </div>
 
@@ -225,7 +315,6 @@
         </table>
       </div>
     </div>
-  </div>
   </div>
 
   <!-- MODAL FOR ORDER DETAILS -->

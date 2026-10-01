@@ -752,60 +752,6 @@
     }
   }
 
-  async function handleAddDriver() {
-    const name = $('inpDriverName').value.trim();
-    const phone = $('inpDriverPhone').value.trim();
-    const plate = $('inpDriverPlate').value.trim();
-
-    if (!name || !phone || !plate) {
-      showToast('Lütfen şoför bilgilerini eksiksiz doldurun.', true);
-      return;
-    }
-
-    const record = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      type: 'driver',
-      data: { name, phone, plate },
-      uploadedBy: currentUser ? (currentUser.personnelName || currentUser.username) : 'Anonim',
-      createdAt: new Date().toISOString()
-    };
-
-    await saveAccountingRecord(record);
-    await loadAccountingRecords();
-
-    $('inpDriverName').value = '';
-    $('inpDriverPhone').value = '';
-    $('inpDriverPlate').value = '';
-    showToast('Şoför başarıyla kaydedildi.');
-  }
-
-  async function handleAddCustomer() {
-    const name = $('inpCustomerNameAcc').value.trim();
-    const phone = $('inpCustomerPhoneAcc').value.trim();
-    const address = $('inpCustomerAddressAcc').value.trim();
-
-    if (!name || !phone || !address) {
-      showToast('Lütfen müşteri bilgilerini eksiksiz doldurun.', true);
-      return;
-    }
-
-    const record = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      type: 'customer',
-      data: { name, phone, address },
-      uploadedBy: currentUser ? (currentUser.personnelName || currentUser.username) : 'Anonim',
-      createdAt: new Date().toISOString()
-    };
-
-    await saveAccountingRecord(record);
-    await loadAccountingRecords();
-
-    $('inpCustomerNameAcc').value = '';
-    $('inpCustomerPhoneAcc').value = '';
-    $('inpCustomerAddressAcc').value = '';
-    showToast('Müşteri başarıyla kaydedildi.');
-  }
-
   window.deleteAccountingRecord = deleteAccountingRecord;
 
   // ---- FATURA LOGIC ----
@@ -1534,9 +1480,6 @@
     $('btnMuhasebeGoToBoard').addEventListener('click', () => { window.location.href = 'index.html'; });
   }
   $('btnUploadContract').addEventListener('click', handleAddContract);
-  // Driver and Customer buttons removed from HTML, event bindings commented out
-  // $('btnAddDriver').addEventListener('click', handleAddDriver);
-  // $('btnAddCustomer').addEventListener('click', handleAddCustomer);
 
   document.querySelectorAll('[data-muhasebe-tab]').forEach(t => {
     t.addEventListener('click', () => switchMuhasebeTab(t.getAttribute('data-muhasebe-tab')));
@@ -2013,8 +1956,8 @@
   let auditLogs = [];
   let currentRaporSubtab = 'kasa';
   let chartNakitObj = null;
-  let chartGelirGiderObj = null;
-  let chartBorcAlacakObj = null;
+  let chartGelirGiderPasta = null;
+  let chartBorcAlacakPasta = null;
 
   async function loadAuditLogs() {
     try {
